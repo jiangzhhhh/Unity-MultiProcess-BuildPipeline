@@ -10,7 +10,7 @@ namespace MultiBuild
         SortedDictionary<string, BundleNode> bundleNodes = new SortedDictionary<string, BundleNode>();
         SortedDictionary<string, AssetNode> assetNodes = new SortedDictionary<string, AssetNode>();
 
-        void BuildDepency()
+        void BuildDependency()
         {
             SortedDictionary<string, List<string>> buildMap = new SortedDictionary<string, List<string>>();
             foreach (var pair in exportAssets)
@@ -62,7 +62,7 @@ namespace MultiBuild
         {
             Assert.IsTrue(jobs > 0);
 
-            BuildDepency();
+            BuildDependency();
 
             HashSet<HashSet<BundleNode>> groups = new HashSet<HashSet<BundleNode>>();
             Queue<BundleNode> que = new Queue<BundleNode>();
@@ -75,9 +75,13 @@ namespace MultiBuild
                     que.Enqueue(bn);
                 }
             }
+            HashSet<BundleNode> visited = new HashSet<BundleNode>();
             while (que.Count > 0)
             {
                 var front = que.Dequeue();
+                if (visited.Contains(front))
+                    continue;
+                visited.Add(front);
                 foreach (var refer in front.refs)
                 {
                     if (refer.group == null)

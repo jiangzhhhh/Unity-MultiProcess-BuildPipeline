@@ -45,7 +45,7 @@ namespace MultiBuild
 #if UNITY_EDITOR_WIN
             Process.Start(Path.GetFullPath("Tools/junction.exe"), string.Format("{0} {1}", dest, source));
 #else
-        Process.Start("ln", string.Format("-s {0} {1}", source, dest));
+            Process.Start("ln", string.Format("-s {0} {1}", source, dest));
 #endif
         }
 
@@ -103,6 +103,7 @@ namespace MultiBuild
             }
 
             string Unity = EditorApplication.applicationPath;
+            Process[] pss = new Process[slaves.Count];
             var jobBuilds = tree.BuildGroups(slaves.Count + 1);
             for (int jobID = 1; jobID < jobBuilds.Length; ++jobID)
             {
@@ -125,13 +126,21 @@ namespace MultiBuild
                 string slaveProj = slaves[jobID - 1];
                 File.WriteAllText(slaveProj + "/build.json", jsonTxt);
                 string cmd = string.Format("-quit -batchmode -logfile {0}/log.txt -projectPath {0} -executeMethod Pack.BuildJobSlave", slaveProj);
-                Process.Start(Unity, cmd);
+                var ps = Process.Start(Unity, cmd);
+                pss[jobID - 1] = ps;
             }
 
             if (jobBuilds.Length > 0)
             {
                 BuildJob(output, jobBuilds[0], flag, target);
             }
+
+            foreach (var ps in pss)
+            {
+                ps.WaitForExit();
+            }
+
+            UnityEngine.Debug.LogFormat("build success.");
         }
 
         public static void BuildJobSlave()
