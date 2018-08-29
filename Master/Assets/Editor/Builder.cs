@@ -125,7 +125,7 @@ namespace MultiBuild
 
                 string slaveProj = slaves[jobID - 1];
                 File.WriteAllText(slaveProj + "/build.json", jsonTxt);
-                string cmd = string.Format("-quit -batchmode -logfile {0}/log.txt -projectPath {0} -executeMethod Pack.BuildJobSlave", slaveProj);
+                string cmd = string.Format("-quit -batchmode -logfile {0}/log.txt -projectPath {0} -executeMethod MultiBuild.Builder.BuildJobSlave", slaveProj);
                 var ps = Process.Start(Unity, cmd);
                 pss[jobID - 1] = ps;
             }
