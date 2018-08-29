@@ -2,7 +2,7 @@
 using UnityEditor;
 using UnityEngine.Assertions;
 
-namespace MultiBuild
+namespace MultiProcessBuildPipeline
 {
     public class BuildTree
     {
@@ -12,6 +12,9 @@ namespace MultiBuild
 
         void BuildDependency()
         {
+            bundleNodes.Clear();
+            assetNodes.Clear();
+
             SortedDictionary<string, List<string>> buildMap = new SortedDictionary<string, List<string>>();
             foreach (var pair in exportAssets)
             {

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace MultiBuild
+namespace MultiProcessBuildPipeline
 {
     public class BundleNode
     {
