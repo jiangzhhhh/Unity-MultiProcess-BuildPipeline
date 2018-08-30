@@ -22,6 +22,20 @@ static class Example
             {"Assets/Res/CubeB2.mat", new string[]{ "Assets/Res/CubeB2.mat" } },
 
             {"Assets/Res/CubeC.prefab", new string[]{ "Assets/Res/CubeC.prefab" } },
+
+            {"Assets/Res/CubeD.prefab", new string[]{
+                "Assets/Res/CubeD.prefab",
+                "Assets/Res/CubeD1.mat",
+                "Assets/Res/CubeD2.mat",
+                "Assets/Res/CubeD3.mat",
+                "Assets/Res/CubeD4.mat",
+                "Assets/Res/CubeD5.mat",
+                "Assets/Res/CubeD6.mat",
+                "Assets/Res/CubeD7.mat",
+                "Assets/Res/CubeD8.mat",
+                "Assets/Res/CubeD9.mat",
+                "Assets/Res/CubeD10.mat",
+            } },
         };
 
         List<AssetBundleBuild> builds = new List<AssetBundleBuild>();
