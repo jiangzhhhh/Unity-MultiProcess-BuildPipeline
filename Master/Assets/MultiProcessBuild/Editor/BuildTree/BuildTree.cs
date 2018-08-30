@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine.Assertions;
 
@@ -68,38 +69,32 @@ namespace MultiProcessBuild
             BuildDependency();
 
             HashSet<HashSet<BundleNode>> groups = new HashSet<HashSet<BundleNode>>();
-            Queue<BundleNode> que = new Queue<BundleNode>();
-            foreach (var bn in bundleNodes.Values)
+            Func<BundleNode, HashSet<BundleNode>> lookUp = (BundleNode node) =>
             {
-                if (bn.deps.Count == 0)
-                {
-                    bn.group = new HashSet<BundleNode> { bn };
-                    groups.Add(bn.group);
-                    que.Enqueue(bn);
-                }
-            }
-            HashSet<BundleNode> visited = new HashSet<BundleNode>();
-            while (que.Count > 0)
+                foreach (var group in groups)
+                    if (group.Contains(node))
+                        return group;
+                return null;
+            };
+            Action<BundleNode, BundleNode> merge = (a, b) =>
             {
-                var front = que.Dequeue();
-                if (visited.Contains(front))
-                    continue;
-                visited.Add(front);
-                foreach (var refer in front.refs)
+                var group1 = lookUp(a);
+                var group2 = lookUp(b);
+                if (group1 != group2)
                 {
-                    if (refer.group == null)
-                    {
-                        refer.group = front.group;
-                        refer.group.Add(refer);
-                    }
-                    else if (refer.group != front.group)
-                    {
-                        front.group.UnionWith(refer.group);
-                        groups.Remove(refer.group);
-                        refer.group = front.group;
-                    }
-                    que.Enqueue(refer);
+                    group1.UnionWith(group2);
+                    groups.Remove(group2);
                 }
+            };
+
+            List<BundleNode> allBundles = new List<BundleNode>(bundleNodes.Values);
+            foreach (var bundle in allBundles)
+                groups.Add(new HashSet<BundleNode> { bundle });
+
+            foreach (var bundle in allBundles)
+            {
+                foreach (var dep in bundle.deps)
+                    merge(bundle, dep);
             }
 
             while (groups.Count > jobs)
