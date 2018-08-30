@@ -1,8 +1,8 @@
 ﻿using System.Collections.Generic;
 
-namespace MultiProcessBuildPipeline
+namespace MultiProcessBuild
 {
-    public class AssetNode
+    class AssetNode
     {
         public string assetName { get; private set; }
         public HashSet<AssetNode> depends { get; private set; }         //引用别人

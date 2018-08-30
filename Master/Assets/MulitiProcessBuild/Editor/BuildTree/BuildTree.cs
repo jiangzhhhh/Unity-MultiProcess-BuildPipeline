@@ -2,9 +2,9 @@
 using UnityEditor;
 using UnityEngine.Assertions;
 
-namespace MultiProcessBuildPipeline
+namespace MultiProcessBuild
 {
-    public class BuildTree
+    class BuildTree
     {
         SortedDictionary<string, string> exportAssets = new SortedDictionary<string, string>();
         SortedDictionary<string, BundleNode> bundleNodes = new SortedDictionary<string, BundleNode>();

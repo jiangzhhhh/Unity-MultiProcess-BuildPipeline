@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace MultiProcessBuildPipeline
+namespace MultiProcessBuild
 {
-    public class BundleNode
+    class BundleNode
     {
         public string bundleName { get; private set; }
         public Dictionary<string, AssetNode> assets { get; private set; }

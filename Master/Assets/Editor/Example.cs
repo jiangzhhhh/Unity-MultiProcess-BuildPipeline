@@ -1,12 +1,11 @@
-using UnityEngine;
-using System.Collections;
 using System.Collections.Generic;
 using UnityEditor;
 
 static class Example
 {
     [MenuItem("Example/Build")]
-    static void Build(){
+    static void Build()
+    {
         SortedDictionary<string, string[]> buildSet = new SortedDictionary<string, string[]>
         {
             {"Assets/Res/64k.txt", new string[]{ "Assets/Res/64k.txt" } },
@@ -24,13 +23,14 @@ static class Example
         };
 
         List<AssetBundleBuild> builds = new List<AssetBundleBuild>();
-        foreach(var pair in buildSet){
+        foreach (var pair in buildSet)
+        {
             AssetBundleBuild build = new AssetBundleBuild();
             build.assetBundleName = pair.Key;
             build.assetNames = pair.Value;
             builds.Add(build);
         }
 
-        MultiProcessBuildPipeline.BuildPipeline.BuildAssetBundles("ab", builds.ToArray(), BuildAssetBundleOptions.None, BuildTarget.StandaloneOSX);
+        MultiProcessBuild.BuildPipeline.BuildAssetBundles("ab", builds.ToArray(), BuildAssetBundleOptions.None, BuildTarget.Android);
     }
 }
