@@ -10,7 +10,7 @@ namespace MultiProcessBuild
         public HashSet<BundleNode> deps { get; private set; }
         public HashSet<BundleNode> refs { get; private set; }
 
-        public HashSet<BundleNode> group;
+        public int weight = 0;
 
         public BundleNode(string bundleName)
         {
@@ -23,6 +23,7 @@ namespace MultiProcessBuild
         public void AddAsset(AssetNode assetNode)
         {
             assets.Add(assetNode.assetName, assetNode);
+            weight++;
         }
 
         public void AddDep(BundleNode dep)

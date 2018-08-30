@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine.Assertions;
@@ -55,6 +56,14 @@ namespace MultiProcessBuild
                         an.AddDep(depN);
                     }
                 }
+
+                var bn = an.bundleNode;
+                string[] deps2 = AssetDatabase.GetDependencies(an.assetName, true);
+                foreach (var dep in deps2)
+                {
+                    if (!assetNodes.ContainsKey(dep))
+                        bn.weight++;
+                }
             }
         }
 
@@ -62,14 +71,36 @@ namespace MultiProcessBuild
         {
             exportAssets[asset] = bundleName;
         }
+
+        class BuildGroup : IEnumerable<BundleNode>
+        {
+            HashSet<BundleNode> set = new HashSet<BundleNode>();
+
+            public void Add(BundleNode item)
+            {
+                this.set.Add(item);
+                this.Weight += item.weight;
+            }
+            public void UnionWith(BuildGroup other)
+            {
+                this.set.UnionWith(other.set);
+                this.Weight += other.Weight;
+            }
+            public bool Contains(BundleNode item) { return this.set.Contains(item); }
+            IEnumerator<BundleNode> IEnumerable<BundleNode>.GetEnumerator() { return this.set.GetEnumerator(); }
+            public IEnumerator GetEnumerator() { return this.set.GetEnumerator(); }
+            public int Count { get { return this.set.Count; } }
+            public int Weight { get; private set; }
+        }
+
         public AssetBundleBuild[][] BuildGroups(int jobs)
         {
             Assert.IsTrue(jobs > 0);
 
             BuildDependency();
 
-            HashSet<HashSet<BundleNode>> groups = new HashSet<HashSet<BundleNode>>();
-            Func<BundleNode, HashSet<BundleNode>> lookUp = (BundleNode node) =>
+            HashSet<BuildGroup> groups = new HashSet<BuildGroup>();
+            Func<BundleNode, BuildGroup> lookUp = (BundleNode node) =>
             {
                 foreach (var group in groups)
                     if (group.Contains(node))
@@ -87,11 +118,14 @@ namespace MultiProcessBuild
                 }
             };
 
-            List<BundleNode> allBundles = new List<BundleNode>(bundleNodes.Values);
-            foreach (var bundle in allBundles)
-                groups.Add(new HashSet<BundleNode> { bundle });
+            foreach (var bundle in bundleNodes.Values)
+            {
+                var group = new BuildGroup();
+                group.Add(bundle);
+                groups.Add(group);
+            }
 
-            foreach (var bundle in allBundles)
+            foreach (var bundle in bundleNodes.Values)
             {
                 foreach (var dep in bundle.deps)
                     merge(bundle, dep);
@@ -99,8 +133,8 @@ namespace MultiProcessBuild
 
             while (groups.Count > jobs)
             {
-                List<HashSet<BundleNode>> sortedGroups = new List<HashSet<BundleNode>>(groups);
-                sortedGroups.Sort((a, b) => { return a.Count.CompareTo(b.Count); });
+                List<BuildGroup> sortedGroups = new List<BuildGroup>(groups);
+                sortedGroups.Sort((a, b) => { return a.Weight.CompareTo(b.Weight); });
 
                 var g1 = sortedGroups[0];
                 var g2 = sortedGroups[1];
@@ -114,7 +148,7 @@ namespace MultiProcessBuild
             {
                 AssetBundleBuild[] set = new AssetBundleBuild[group.Count];
                 int j = 0;
-                foreach (var bn in group)
+                foreach (BundleNode bn in group)
                 {
                     var abb = set[j];
                     abb.assetBundleName = bn.bundleName;
