@@ -10,49 +10,35 @@ namespace MultiProcessBuild
     {
         static void OutputResult(string resultFile, float useTime, AssetBundleManifest manifest)
         {
-            BuildResult result = new BuildResult();
+            BuildManifest result = new BuildManifest();
             result.buildTime = useTime;
-            List<BuildResult.Bundle> bundles = new List<BuildResult.Bundle>();
+            List<BuildManifest.AssetBundleBuild> bundles = new List<BuildManifest.AssetBundleBuild>();
             foreach (var name in manifest.GetAllAssetBundles())
             {
-                BuildResult.Bundle bundle = new BuildResult.Bundle();
-                bundle.name = name;
+                BuildManifest.AssetBundleBuild bundle = new BuildManifest.AssetBundleBuild();
+                bundle.assetBundleName = name;
                 bundle.dependency = manifest.GetDirectDependencies(name);
                 bundle.hash = manifest.GetAssetBundleHash(name).ToString();
                 bundles.Add(bundle);
             }
-            result.bundles = bundles.ToArray();
+            result.builds = bundles.ToArray();
             File.WriteAllText(resultFile, JsonUtility.ToJson(result, true));
         }
 
         static void BuildJobSlave()
         {
-            string jsonTxt = File.ReadAllText("./build.json");
-            BuildJob json = JsonUtility.FromJson<BuildJob>(jsonTxt);
-
-            List<AssetBundleBuild> builds = new List<AssetBundleBuild>();
-            foreach (var jsonBuild in json.builds)
-            {
-                AssetBundleBuild build = new AssetBundleBuild();
-                build.assetBundleName = jsonBuild.assetBundleName;
-                build.assetNames = jsonBuild.assetNames;
-                builds.Add(build);
-            }
-
-            BuildAssetBundleOptions flag = (BuildAssetBundleOptions)json.options;
-            BuildTarget target = (BuildTarget)json.target;
-            float old_time = Time.realtimeSinceStartup;
-            var unity_manifest = BuildJob(json.output, builds.ToArray(), flag, target);
-
-            string resultFile = string.Format("{0}/result_{1}.json", json.output, json.slaveID + 1);
-            OutputResult(resultFile, Time.realtimeSinceStartup - old_time, unity_manifest);
+            string text = File.ReadAllText("./build.json");
+            BuildJob job = JsonUtility.FromJson<BuildJob>(text);
+            BuildJob(job);
         }
 
-        static AssetBundleManifest BuildJob(string output, AssetBundleBuild[] builds, BuildAssetBundleOptions options, BuildTarget target)
+        static AssetBundleManifest BuildJob(BuildJob job)
         {
-            if (!Directory.Exists(output))
-                Directory.CreateDirectory(output);
-            return UnityEditor.BuildPipeline.BuildAssetBundles(output, builds, options, target);
+            long ot = System.DateTime.Now.Ticks;
+            var unity_manifest = job.Build();
+            string resultFile = string.Format("{0}/result_{1}.json", job.output, job.slaveID);
+            OutputResult(resultFile, (System.DateTime.Now.Ticks - ot) / 10000000f, unity_manifest);
+            return unity_manifest;
         }
 
         public static void BuildAssetBundles(string output, AssetBundleBuild[] builds, BuildAssetBundleOptions options, BuildTarget target)
@@ -80,31 +66,14 @@ namespace MultiProcessBuild
             }
 
             string Unity = EditorApplication.applicationPath;
-            Process[] pss = new Process[slaves.Count];
-            var jobBuilds = tree.BuildGroups(slaves.Count + 1);
-            for (int jobID = 1; jobID < jobBuilds.Length; ++jobID)
+            var jobs = tree.BuildJobs(slaves.Count + 1, output, options, target);
+            List<Process> pss = new List<Process>();
+            for (int jobID = 1; jobID < jobs.Length; ++jobID)
             {
                 int slaveID = jobID - 1;
-                var jobBuild = jobBuilds[jobID];
-                BuildJob.AssetBundleBuild[] myBuilds = new BuildJob.AssetBundleBuild[jobBuild.Length];
-                for (int j = 0; j < jobBuild.Length; ++j)
-                {
-                    var x = new BuildJob.AssetBundleBuild();
-                    x.assetBundleName = jobBuild[j].assetBundleName;
-                    x.assetNames = jobBuild[j].assetNames;
-                    myBuilds[j] = x;
-                }
-
-                BuildJob json = new BuildJob();
-                json.output = output;
-                json.builds = myBuilds;
-                json.options = (int)options;
-                json.target = (int)target;
-                json.slaveID = slaveID;
-                string jsonTxt = JsonUtility.ToJson(json, true);
-
+                BuildJob job = jobs[jobID];
                 string slaveProj = slaves[slaveID];
-                File.WriteAllText(slaveProj + "/build.json", jsonTxt);
+                File.WriteAllText(slaveProj + "/build.json", JsonUtility.ToJson(job, true));
                 string cmd = string.Format(" -quit" +
                                            " -batchmode" +
                                            " -logfile {0}/log.txt" +
@@ -112,19 +81,21 @@ namespace MultiProcessBuild
                                            " -executeMethod MultiProcessBuild.BuildPipeline.BuildJobSlave",
                                            slaveProj);
                 var ps = Process.Start(Unity, cmd);
-                pss[slaveID] = ps;
-            }
-
-            if (jobBuilds.Length > 0)
-            {
-                float old_time = Time.realtimeSinceStartup;
-                var unity_manifest = BuildJob(output, jobBuilds[0], options, target);
-                string resultFile = string.Format("{0}/result_{1}.json", output, 0);
-                OutputResult(resultFile, Time.realtimeSinceStartup - old_time, unity_manifest);
+                pss.Add(ps);
             }
 
             bool allFinish = true;
-            for (int slaveID = 0; slaveID < pss.Length; ++slaveID)
+            if (jobs.Length > 0)
+            {
+                var job = jobs[0];
+                File.WriteAllText("build.json", JsonUtility.ToJson(job, true));
+
+                long ot = System.DateTime.Now.Ticks;
+                var unity_manifest = BuildJob(job);
+                if (unity_manifest == null)
+                    allFinish = false;
+            }
+            for (int slaveID = 0; slaveID < pss.Count; ++slaveID)
             {
                 var ps = pss[slaveID];
                 ps.WaitForExit();
@@ -143,6 +114,20 @@ namespace MultiProcessBuild
                 UnityEngine.Debug.LogFormat("all slave finish.");
             else
                 UnityEngine.Debug.LogErrorFormat("some slave error.");
+        }
+
+        public static void OutputDependencyTree(string output, AssetBundleBuild[] builds)
+        {
+            var tree = new BuildTree();
+            foreach (var build in builds)
+            {
+                foreach (var asset in build.assetNames)
+                {
+                    tree.AddBuildAsset(asset, build.assetBundleName);
+                }
+            }
+            var dependencyTree = tree.GetDependencyTree();
+            File.WriteAllText(output, JsonUtility.ToJson(dependencyTree, true));
         }
     }
 }

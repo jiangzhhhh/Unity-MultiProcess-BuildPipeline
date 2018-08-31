@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using UnityEditor;
 using UnityEngine.Assertions;
 
@@ -11,9 +12,14 @@ namespace MultiProcessBuild
         SortedDictionary<string, string> exportAssets = new SortedDictionary<string, string>();
         SortedDictionary<string, BundleNode> bundleNodes = new SortedDictionary<string, BundleNode>();
         SortedDictionary<string, AssetNode> assetNodes = new SortedDictionary<string, AssetNode>();
+        bool dirty = false;
 
         void BuildDependency()
         {
+            if (!dirty)
+                return;
+            dirty = false;
+
             bundleNodes.Clear();
             assetNodes.Clear();
 
@@ -47,7 +53,8 @@ namespace MultiProcessBuild
             }
             foreach (var an in assetNodes.Values)
             {
-                string[] deps = AssetDatabase.GetDependencies(an.assetName, false);
+                var bn = an.bundleNode;
+                string[] deps = AssetDatabase.GetDependencies(an.assetName, true);
                 foreach (var dep in deps)
                 {
                     AssetNode depN;
@@ -55,14 +62,10 @@ namespace MultiProcessBuild
                     {
                         an.AddDep(depN);
                     }
-                }
-
-                var bn = an.bundleNode;
-                string[] deps2 = AssetDatabase.GetDependencies(an.assetName, true);
-                foreach (var dep in deps2)
-                {
-                    if (!assetNodes.ContainsKey(dep))
+                    else
+                    {
                         bn.weight++;
+                    }
                 }
             }
         }
@@ -70,6 +73,7 @@ namespace MultiProcessBuild
         public void AddBuildAsset(string asset, string bundleName)
         {
             exportAssets[asset] = bundleName;
+            dirty = true;
         }
 
         class BuildGroup : IEnumerable<BundleNode>
@@ -93,9 +97,9 @@ namespace MultiProcessBuild
             public int Weight { get; private set; }
         }
 
-        public AssetBundleBuild[][] BuildGroups(int jobs)
+        public BuildJob[] BuildJobs(int nJobs, string output, BuildAssetBundleOptions options, BuildTarget target)
         {
-            Assert.IsTrue(jobs > 0);
+            Assert.IsTrue(nJobs > 0);
 
             BuildDependency();
 
@@ -131,7 +135,7 @@ namespace MultiProcessBuild
                     merge(bundle, dep);
             }
 
-            while (groups.Count > jobs)
+            while (groups.Count > nJobs)
             {
                 List<BuildGroup> sortedGroups = new List<BuildGroup>(groups);
                 sortedGroups.Sort((a, b) => { return a.Weight.CompareTo(b.Weight); });
@@ -142,23 +146,48 @@ namespace MultiProcessBuild
                 groups.Remove(g2);
             }
 
-            AssetBundleBuild[][] builds = new AssetBundleBuild[groups.Count][];
-            int i = 0;
+            List<BuildJob> jobs = new List<BuildJob>();
             foreach (var group in groups)
             {
-                AssetBundleBuild[] set = new AssetBundleBuild[group.Count];
-                int j = 0;
+                BuildJob job = new BuildJob();
+                job.output = output;
+                job.slaveID = jobs.Count;
+                job.options = (int)options;
+                job.target = (int)target;
+                List<BuildJob.AssetBundleBuild> jobBuilds = new List<BuildJob.AssetBundleBuild>();
                 foreach (BundleNode bn in group)
                 {
-                    var abb = set[j];
-                    abb.assetBundleName = bn.bundleName;
-                    abb.assetNames = new List<string>(bn.assets.Keys).ToArray();
-                    set[j] = abb;
-                    j++;
+                    var jobBuild = new BuildJob.AssetBundleBuild();
+                    jobBuild.assetBundleName = bn.bundleName;
+                    jobBuild.assetNames = new List<string>(bn.assets.Keys).ToArray();
+                    jobBuilds.Add(jobBuild);
                 }
-                builds[i++] = set;
+                job.builds = jobBuilds.ToArray();
+                jobs.Add(job);
             }
-            return builds;
+            return jobs.ToArray();
+        }
+
+        public DepencdencyTree GetDependencyTree()
+        {
+            BuildDependency();
+
+            List<DepencdencyTree.Bundle> builds = new List<DepencdencyTree.Bundle>();
+            foreach (var bn in bundleNodes.Values)
+            {
+                var build = new DepencdencyTree.Bundle();
+                build.assetBundleName = bn.bundleName;
+                build.assetNames = new List<string>(bn.assets.Keys).ToArray();
+                SortedList<string, string> deps = new SortedList<string, string>();
+                foreach (var depB in bn.deps)
+                    deps.Add(depB.bundleName, depB.bundleName);
+                build.dependency = new List<string>(deps.Values).ToArray();
+                build.weight = bn.weight;
+                builds.Add(build);
+            }
+            DepencdencyTree tree = new DepencdencyTree();
+            tree.bundles = builds.ToArray();
+            return tree;
         }
     }
 }
