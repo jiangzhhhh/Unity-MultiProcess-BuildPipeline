@@ -8,16 +8,19 @@ namespace MultiProcessBuild
         public static int defaultWeight = 30;
         public static Dictionary<string, int> presetWeightTable = new Dictionary<string, int>
         {
-            {".anim"   ,   1  },
-            {".mat"    ,   19 },
-            {".shader" ,   21 },
-            {".prefab" ,   33 },
-            {".asset"  ,   33 },
-            {".fbx"    ,   35 },
-            //txt
-            {".txt"    ,   48 },
-            {".bytes"  ,   49 },
-            //texture
+            //light
+            {".anim"   ,   20  },
+            {".txt"   ,   20  },
+            {".bytes"   ,   20  },
+            {".json"   ,   20  },
+            {".mat"    ,   20 },
+            {".prefab" ,   20 },
+
+            //middle
+            {".shader" ,   60 },
+
+            //heavy
+            {".fbx",   80 },
             {".jpg", 81},
             {".jpeg", 81},
             {".tif", 81},
@@ -32,7 +35,8 @@ namespace MultiProcessBuild
             {".pic", 81},
             {".pct", 81},
             {".exr", 81},
-            //scene
+
+            //very heavy
             {".unity3d",   100 },
         };
 
