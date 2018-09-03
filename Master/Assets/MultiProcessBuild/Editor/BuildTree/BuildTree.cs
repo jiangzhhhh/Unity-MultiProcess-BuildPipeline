@@ -59,13 +59,9 @@ namespace MultiProcessBuild
                 {
                     AssetNode depN;
                     if (assetNodes.TryGetValue(dep, out depN))
-                    {
                         an.AddDep(depN);
-                    }
                     else
-                    {
-                        bn.weight++;
-                    }
+                        bn.AddWeight(dep);
                 }
             }
         }

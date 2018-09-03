@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace MultiProcessBuild
 {
@@ -23,7 +22,12 @@ namespace MultiProcessBuild
         public void AddAsset(AssetNode assetNode)
         {
             assets.Add(assetNode.assetName, assetNode);
-            weight++;
+            AddWeight(assetNode.assetName);
+        }
+
+        public void AddWeight(string asset)
+        {
+            this.weight += WeightTable.GetWeight(asset);
         }
 
         public void AddDep(BundleNode dep)
@@ -32,26 +36,6 @@ namespace MultiProcessBuild
             {
                 this.deps.Add(dep);
                 dep.refs.Add(this);
-            }
-        }
-
-        static void WalkAsset(AssetNode asset, Action<AssetNode> walker, HashSet<AssetNode> visited)
-        {
-            if (visited.Contains(asset))
-                return;
-            visited.Add(asset);
-            walker(asset);
-            foreach (var dep in asset.depends)
-            {
-                WalkAsset(dep, walker, visited);
-            }
-        }
-        public void WalkAssets(Action<AssetNode> walker)
-        {
-            HashSet<AssetNode> visited = new HashSet<AssetNode>();
-            foreach (var asset in assets.Values)
-            {
-                WalkAsset(asset, walker, visited);
             }
         }
     }

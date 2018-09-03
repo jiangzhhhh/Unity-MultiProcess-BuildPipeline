@@ -50,6 +50,30 @@ namespace MultiProcessBuild
         [SerializeField]
         public AssetBundleBuild[] builds;
         public float buildTime;
+
+        public string[] GetAllAssetBundles()
+        {
+            string[] result = new string[builds.Length];
+            for (int i = 0; i < builds.Length; ++i)
+                result[i] = builds[i].assetBundleName;
+            return result;
+        }
+        public string[] GetAllAssetBundlesWithVariant() { return new string[0]; }
+        public string[] GetAllDependencies(string assetBundleName)
+        {
+            var v = ArrayUtility.Find(builds, (a) => a.assetBundleName == assetBundleName);
+            if (v == null)
+                return new string[0];
+            return v.dependency;
+        }
+        public Hash128 GetAssetBundleHash(string assetBundleName)
+        {
+            var v = ArrayUtility.Find(builds, (a) => a.assetBundleName == assetBundleName);
+            if (v == null)
+                return Hash128.Parse("");
+            return Hash128.Parse(v.hash);
+        }
+        public string[] GetDirectDependencies(string assetBundleName) { return GetAllDependencies(assetBundleName); }
     }
 
     [System.Serializable]
