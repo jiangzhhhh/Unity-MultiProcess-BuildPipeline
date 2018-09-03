@@ -13,6 +13,7 @@ namespace MultiProcessBuild
         {
             public string assetBundleName;
             public string[] assetNames;
+            public int weight;
         }
         public string output;
         [SerializeField]
@@ -20,6 +21,7 @@ namespace MultiProcessBuild
         public int options;
         public int target;
         public int slaveID;
+        public int weight;
 
         public AssetBundleManifest Build()
         {

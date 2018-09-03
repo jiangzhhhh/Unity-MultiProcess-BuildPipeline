@@ -156,6 +156,8 @@ namespace MultiProcessBuild
                     var jobBuild = new BuildJob.AssetBundleBuild();
                     jobBuild.assetBundleName = bn.bundleName;
                     jobBuild.assetNames = new List<string>(bn.assets.Keys).ToArray();
+                    jobBuild.weight = bn.weight;
+                    job.weight += bn.weight;
                     jobBuilds.Add(jobBuild);
                 }
                 job.builds = jobBuilds.ToArray();
