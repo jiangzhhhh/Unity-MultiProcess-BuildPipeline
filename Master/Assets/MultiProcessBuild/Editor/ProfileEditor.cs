@@ -67,6 +67,20 @@ namespace MultiProcessBuild
                     CreateSlave(i);
             }
 
+            if (GUILayout.Button("Cold Startup"))
+            {
+                //Copy Libaray
+                string library = Path.GetFullPath("Library");
+                for (int i = 0; i < Profile.SlaveCount; ++i)
+                {
+                    string slaveDir = Path.GetFullPath(Profile.SlaveRoot);
+                    string slaveLibrary = Path.Combine(slaveDir, string.Format("slave_{0}/Library", i));
+                    if (Directory.Exists(slaveLibrary))
+                        Directory.Delete(slaveLibrary, true);
+                    FileUtil.CopyFileOrDirectory(library, slaveLibrary);
+                }
+            }
+
             if (GUILayout.Button("Open Slave Root Directory"))
             {
 #if UNITY_EDITOR_WIN
