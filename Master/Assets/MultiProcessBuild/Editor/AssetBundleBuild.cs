@@ -23,7 +23,7 @@ namespace MultiProcessBuild
         public int slaveID;
         public int weight;
 
-        public AssetBundleManifest Build()
+        public UnityEngine.AssetBundleManifest Build()
         {
             if (!Directory.Exists(this.output))
                 Directory.CreateDirectory(this.output);
@@ -40,7 +40,7 @@ namespace MultiProcessBuild
     }
 
     [System.Serializable]
-    public class BuildManifest
+    public class AssetBundleManifest
     {
         [System.Serializable]
         public class AssetBundleBuild
@@ -63,10 +63,14 @@ namespace MultiProcessBuild
         public string[] GetAllAssetBundlesWithVariant() { return new string[0]; }
         public string[] GetAllDependencies(string assetBundleName)
         {
-            var v = ArrayUtility.Find(builds, (a) => a.assetBundleName == assetBundleName);
-            if (v == null)
-                return new string[0];
-            return v.dependency;
+            HashSet<string> deps = new HashSet<string>();
+            var direct = GetDirectDependencies(assetBundleName);
+            deps.UnionWith(direct);
+            foreach (var dep in direct)
+                deps.UnionWith(GetAllDependencies(dep));
+            List<string> sorted = new List<string>(deps);
+            sorted.Sort();
+            return sorted.ToArray();
         }
         public Hash128 GetAssetBundleHash(string assetBundleName)
         {
@@ -75,7 +79,13 @@ namespace MultiProcessBuild
                 return Hash128.Parse("");
             return Hash128.Parse(v.hash);
         }
-        public string[] GetDirectDependencies(string assetBundleName) { return GetAllDependencies(assetBundleName); }
+        public string[] GetDirectDependencies(string assetBundleName)
+        {
+            var v = ArrayUtility.Find(builds, (a) => a.assetBundleName == assetBundleName);
+            if (v == null)
+                return new string[0];
+            return v.dependency;
+        }
     }
 
     [System.Serializable]
