@@ -86,7 +86,7 @@ namespace MultiProcessBuild
 #if UNITY_EDITOR_WIN
                 Process.Start("explorer", Profile.SlaveRoot);
 #else
-                Process.Start("start", Profile.SlaveRoot);
+                Process.Start("open", Profile.SlaveRoot);
 #endif
             }
         }

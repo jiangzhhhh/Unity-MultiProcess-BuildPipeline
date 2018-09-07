@@ -29,7 +29,7 @@ namespace MultiProcessBuild
             return result;
         }
 
-        [MenuItem("MultiProcessBuild/Build With buid.json")]
+        [MenuItem("MultiProcessBuild/Build With build.json")]
         static void BuildJobSlave()
         {
             string text = File.ReadAllText("./build.json");
@@ -69,11 +69,11 @@ namespace MultiProcessBuild
                 slaves.Add(slaveProj);
             }
 
-            //for debug
-            var depTree = tree.GetDependencyTree();
-            File.WriteAllText("Temp/deps.json", JsonUtility.ToJson(depTree, true));
-
             string Unity = EditorApplication.applicationPath;
+#if UNITY_EDITOR_OSX
+            Unity += "/Contents/MacOS/Unity";
+#endif
+
             var jobs = tree.BuildJobs(slaves.Count + 1, output, options, target);
             List<Process> pss = new List<Process>();
             AssetBundleManifest[] results = new AssetBundleManifest[jobs.Length];
