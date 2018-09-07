@@ -87,19 +87,4 @@ namespace MultiProcessBuild
             return v.dependency;
         }
     }
-
-    [System.Serializable]
-    public class DepencdencyTree
-    {
-        [System.Serializable]
-        public class Bundle
-        {
-            public string assetBundleName;
-            public string[] assetNames;
-            public string[] dependency;
-            public int weight;
-        }
-        [SerializeField]
-        public Bundle[] bundles;
-    }
 }

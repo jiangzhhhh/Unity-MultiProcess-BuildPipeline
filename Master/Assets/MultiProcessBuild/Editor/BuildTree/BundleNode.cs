@@ -7,7 +7,6 @@ namespace MultiProcessBuild
         public string bundleName { get; private set; }
         public Dictionary<string, AssetNode> assets { get; private set; }
         public HashSet<BundleNode> deps { get; private set; }
-        public HashSet<BundleNode> refs { get; private set; }
 
         public int weight = 0;
 
@@ -16,7 +15,6 @@ namespace MultiProcessBuild
             this.bundleName = bundleName;
             this.assets = new Dictionary<string, AssetNode>();
             this.deps = new HashSet<BundleNode>();
-            this.refs = new HashSet<BundleNode>();
         }
 
         public void AddAsset(AssetNode assetNode)
@@ -33,10 +31,7 @@ namespace MultiProcessBuild
         public void AddDep(BundleNode dep)
         {
             if (!this.deps.Contains(dep))
-            {
                 this.deps.Add(dep);
-                dep.refs.Add(this);
-            }
         }
     }
 }

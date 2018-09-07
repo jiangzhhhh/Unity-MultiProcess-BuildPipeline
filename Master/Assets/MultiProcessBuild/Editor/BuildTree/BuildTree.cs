@@ -165,27 +165,5 @@ namespace MultiProcessBuild
             }
             return jobs.ToArray();
         }
-
-        public DepencdencyTree GetDependencyTree()
-        {
-            BuildDependency();
-
-            List<DepencdencyTree.Bundle> builds = new List<DepencdencyTree.Bundle>();
-            foreach (var bn in bundleNodes.Values)
-            {
-                var build = new DepencdencyTree.Bundle();
-                build.assetBundleName = bn.bundleName;
-                build.assetNames = new List<string>(bn.assets.Keys).ToArray();
-                SortedList<string, string> deps = new SortedList<string, string>();
-                foreach (var depB in bn.deps)
-                    deps.Add(depB.bundleName, depB.bundleName);
-                build.dependency = new List<string>(deps.Values).ToArray();
-                build.weight = bn.weight;
-                builds.Add(build);
-            }
-            DepencdencyTree tree = new DepencdencyTree();
-            tree.bundles = builds.ToArray();
-            return tree;
-        }
     }
 }
