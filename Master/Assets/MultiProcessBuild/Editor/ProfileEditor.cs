@@ -13,8 +13,9 @@ namespace MultiProcessBuild
         {
 #if UNITY_EDITOR_WIN
             Process.Start(Path.GetFullPath("Tools/junction.exe"), string.Format("{0} {1}", dest, source));
-#else
-            Process.Start("ln", string.Format("-s {0} {1}", source, dest));
+#elif UNITY_EDITOR_OSX
+            //Process.Start("ln", string.Format("-s {0} {1}", source, dest));
+            throw new System.NotSupportedException("sorry. Unity can't work with SymLink.");
 #endif
         }
 
