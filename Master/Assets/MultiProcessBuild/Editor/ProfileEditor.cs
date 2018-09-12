@@ -38,7 +38,7 @@ namespace MultiProcessBuild
             string slaveDir = Path.GetFullPath(Profile.SlaveRoot);
             slaveDir = Path.Combine(slaveDir, string.Format("slave_{0}", index));
             Directory.CreateDirectory(slaveDir);
-#if UNITY_EDITOR_OSX || true
+#if UNITY_EDITOR_OSX
             MakeSymbolLinkFlatDir(Path.GetFullPath("Assets"), Path.Combine(slaveDir, "Assets"));
 #else
 			MakeSymbolLink(Path.GetFullPath("Assets"), Path.Combine(slaveDir, "Assets"));
