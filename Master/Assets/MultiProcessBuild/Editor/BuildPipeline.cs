@@ -39,10 +39,11 @@ namespace MultiProcessBuild
 
         static AssetBundleManifest BuildJob(BuildJob job)
         {
-            long ot = System.DateTime.Now.Ticks;
+            var sw = new Stopwatch();
             var unity_manifest = job.Build();
             string resultFile = string.Format("{0}/result_{1}.json", job.output, job.slaveID);
-            return OutputResult(resultFile, (System.DateTime.Now.Ticks - ot) / 10000000f, unity_manifest);
+            sw.Stop();
+            return OutputResult(resultFile, sw.UseSecs, unity_manifest);
         }
 
         public static AssetBundleManifest BuildAssetBundles(string output, AssetBundleBuild[] builds, BuildAssetBundleOptions options, BuildTarget target)
@@ -75,6 +76,7 @@ namespace MultiProcessBuild
 #endif
 
             var jobs = tree.BuildJobs(slaves.Count + 1, output, options, target);
+
             List<Process> pss = new List<Process>();
             AssetBundleManifest[] results = new AssetBundleManifest[jobs.Length];
             for (int jobID = 1; jobID < jobs.Length; ++jobID)
@@ -83,14 +85,18 @@ namespace MultiProcessBuild
                 BuildJob job = jobs[jobID];
                 string slaveProj = slaves[slaveID];
                 File.WriteAllText(slaveProj + "/build.json", JsonUtility.ToJson(job, true));
-                string cmd = string.Format(" -quit" +
+
+                if ((options & BuildAssetBundleOptions.DryRunBuild) == 0)
+                {
+                    string cmd = string.Format(" -quit" +
                                            " -batchmode" +
                                            " -logfile {0}/log.txt" +
                                            " -projectPath {0} " +
                                            " -executeMethod MultiProcessBuild.BuildPipeline.BuildJobSlave",
                                            slaveProj);
-                var ps = Process.Start(Unity, cmd);
-                pss.Add(ps);
+                    var ps = Process.Start(Unity, cmd);
+                    pss.Add(ps);
+                }
             }
 
             bool allFinish = true;
@@ -99,12 +105,18 @@ namespace MultiProcessBuild
                 var job = jobs[0];
                 File.WriteAllText("build.json", JsonUtility.ToJson(job, true));
 
-                long ot = System.DateTime.Now.Ticks;
-                var result = BuildJob(job);
-                results[0] = result;
-                if (result == null)
-                    allFinish = false;
+                if ((options & BuildAssetBundleOptions.DryRunBuild) == 0)
+                {
+                    var result = BuildJob(job);
+                    results[0] = result;
+                    if (result == null)
+                        allFinish = false;
+                }
             }
+
+            //dryrun return null
+            if ((options & BuildAssetBundleOptions.DryRunBuild) != 0)
+                return null;
 
             int progress = 0;
             int totalProgress = pss.Count;
