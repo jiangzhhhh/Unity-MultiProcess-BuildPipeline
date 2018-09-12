@@ -105,23 +105,45 @@ namespace MultiProcessBuild
                 if (result == null)
                     allFinish = false;
             }
-            for (int slaveID = 0; slaveID < pss.Count; ++slaveID)
+
+            int progress = 0;
+            int totalProgress = pss.Count;
+            try
             {
-                var ps = pss[slaveID];
-                ps.WaitForExit();
-                var ExitCode = ps.ExitCode;
-                if (ExitCode != 0)
+                while (progress < totalProgress)
                 {
-                    allFinish = false;
-                    UnityEngine.Debug.LogErrorFormat("slave {0} code:{1}", slaveID, ExitCode);
+                    EditorUtility.DisplayProgressBar("building", "waiting for sub process...", (float)progress / totalProgress);
+                    for (int slaveID = 0; slaveID < pss.Count; ++slaveID)
+                    {
+                        var ps = pss[slaveID];
+                        if (ps == null)
+                            continue;
+
+                        if (ps.WaitForExit(200))
+                        {
+                            progress++;
+
+                            var ExitCode = ps.ExitCode;
+                            if (ExitCode != 0)
+                            {
+                                allFinish = false;
+                                UnityEngine.Debug.LogErrorFormat("slave {0} code:{1}", slaveID, ExitCode);
+                            }
+                            else
+                            {
+                                UnityEngine.Debug.LogFormat("slave {0} code:{1}", slaveID, ExitCode);
+                                string resultFile = string.Format(string.Format("{0}/result_{1}.json", output, slaveID + 1));
+                                results[slaveID + 1] = JsonUtility.FromJson<AssetBundleManifest>(File.ReadAllText(resultFile));
+                            }
+                            ps.Dispose();
+                            pss[slaveID] = null;
+                        }
+                    }
                 }
-                else
-                {
-                    UnityEngine.Debug.LogFormat("slave {0} code:{1}", slaveID, ExitCode);
-                    string resultFile = string.Format(string.Format("{0}/result_{1}.json", output, slaveID + 1));
-                    results[slaveID + 1] = JsonUtility.FromJson<AssetBundleManifest>(File.ReadAllText(resultFile));
-                }
-                ps.Dispose();
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
             }
 
             if (allFinish)
