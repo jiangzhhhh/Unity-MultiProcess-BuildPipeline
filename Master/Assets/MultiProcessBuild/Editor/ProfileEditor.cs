@@ -14,10 +14,23 @@ namespace MultiProcessBuild
 #if UNITY_EDITOR_WIN
             Process.Start(Path.GetFullPath("Tools/junction.exe"), string.Format("{0} {1}", dest, source));
 #elif UNITY_EDITOR_OSX
-            //Process.Start("ln", string.Format("-s {0} {1}", source, dest));
-            throw new System.NotSupportedException("sorry. Unity can't work with SymLink.");
+			Process.Start("ln", string.Format("-s {0} {1}", source, dest));
 #endif
         }
+
+		static void MakeSymbolLinkFlatDir(string source, string dest)
+		{
+			Directory.CreateDirectory(dest);
+			dest = Path.GetDirectoryName (dest);
+			foreach(var x in Directory.GetFiles(source, "*.*", SearchOption.TopDirectoryOnly)){
+				var relPath = FileUtil.GetProjectRelativePath(x);
+				MakeSymbolLink (x, Path.Combine(dest, relPath));
+			}
+			foreach(var x in Directory.GetDirectories(source, "*.*", SearchOption.TopDirectoryOnly)){
+				var relPath = FileUtil.GetProjectRelativePath(x);
+				MakeSymbolLink (x, Path.Combine(dest, relPath));
+			}
+		}
 
         static void CreateSlave(int index)
         {
@@ -26,7 +39,11 @@ namespace MultiProcessBuild
             if (Directory.Exists(slaveDir))
                 return;
             Directory.CreateDirectory(slaveDir);
-            MakeSymbolLink(Path.GetFullPath("Assets"), Path.Combine(slaveDir, "Assets"));
+			#if UNITY_EDITOR_OSX
+			MakeSymbolLinkFlatDir(Path.GetFullPath("Assets"), Path.Combine(slaveDir, "Assets"));
+			#else
+			MakeSymbolLink(Path.GetFullPath("Assets"), Path.Combine(slaveDir, "Assets"));
+			#endif
             MakeSymbolLink(Path.GetFullPath("ProjectSettings"), Path.Combine(slaveDir, "ProjectSettings"));
 
             UnityEngine.Debug.LogFormat("Create Slave Project: {0}", slaveDir);
