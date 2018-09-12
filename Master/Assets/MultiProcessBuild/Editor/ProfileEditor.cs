@@ -8,7 +8,6 @@ namespace MultiProcessBuild
     [CustomEditor(typeof(Profile))]
     class ProfileEditor : Editor
     {
-
         static void MakeSymbolLink(string source, string dest)
         {
 #if UNITY_EDITOR_WIN
@@ -18,32 +17,32 @@ namespace MultiProcessBuild
 #endif
         }
 
-		static void MakeSymbolLinkFlatDir(string source, string dest)
-		{
-			Directory.CreateDirectory(dest);
-			dest = Path.GetDirectoryName (dest);
-			foreach(var x in Directory.GetFiles(source, "*.*", SearchOption.TopDirectoryOnly)){
-				var relPath = FileUtil.GetProjectRelativePath(x);
-				MakeSymbolLink (x, Path.Combine(dest, relPath));
-			}
-			foreach(var x in Directory.GetDirectories(source, "*.*", SearchOption.TopDirectoryOnly)){
-				var relPath = FileUtil.GetProjectRelativePath(x);
-				MakeSymbolLink (x, Path.Combine(dest, relPath));
-			}
-		}
+        static void MakeSymbolLinkFlatDir(string source, string dest)
+        {
+            Directory.CreateDirectory(dest);
+            dest = Path.GetDirectoryName(dest);
+            foreach (var x in Directory.GetFiles(source, "*.*", SearchOption.TopDirectoryOnly))
+            {
+                var relPath = FileUtil.GetProjectRelativePath(x);
+                MakeSymbolLink(x, Path.Combine(dest, relPath));
+            }
+            foreach (var x in Directory.GetDirectories(source, "*.*", SearchOption.TopDirectoryOnly))
+            {
+                var relPath = FileUtil.GetProjectRelativePath(x);
+                MakeSymbolLink(x, Path.Combine(dest, relPath));
+            }
+        }
 
         static void CreateSlave(int index)
         {
             string slaveDir = Path.GetFullPath(Profile.SlaveRoot);
             slaveDir = Path.Combine(slaveDir, string.Format("slave_{0}", index));
-            if (Directory.Exists(slaveDir))
-                return;
             Directory.CreateDirectory(slaveDir);
-			#if UNITY_EDITOR_OSX
-			MakeSymbolLinkFlatDir(Path.GetFullPath("Assets"), Path.Combine(slaveDir, "Assets"));
-			#else
+#if UNITY_EDITOR_OSX || true
+            MakeSymbolLinkFlatDir(Path.GetFullPath("Assets"), Path.Combine(slaveDir, "Assets"));
+#else
 			MakeSymbolLink(Path.GetFullPath("Assets"), Path.Combine(slaveDir, "Assets"));
-			#endif
+#endif
             MakeSymbolLink(Path.GetFullPath("ProjectSettings"), Path.Combine(slaveDir, "ProjectSettings"));
 
             UnityEngine.Debug.LogFormat("Create Slave Project: {0}", slaveDir);
@@ -70,7 +69,7 @@ namespace MultiProcessBuild
                 }
             }
 
-            if (GUILayout.Button("Save Profile"))
+            if (string.IsNullOrEmpty(AssetDatabase.GetAssetPath(this.target)) && GUILayout.Button("Save Profile"))
             {
                 string path = EditorUtility.SaveFilePanelInProject("Save Profile To ...", "profile", "asset", "Save Profile To");
                 if (string.IsNullOrEmpty(path))
@@ -87,15 +86,25 @@ namespace MultiProcessBuild
 
             if (GUILayout.Button("Cold Startup"))
             {
-                //Copy Libaray
-                string library = Path.GetFullPath("Library");
-                for (int i = 0; i < Profile.SlaveCount; ++i)
+                try
                 {
-                    string slaveDir = Path.GetFullPath(Profile.SlaveRoot);
-                    string slaveLibrary = Path.Combine(slaveDir, string.Format("slave_{0}/Library", i));
-                    if (Directory.Exists(slaveLibrary))
-                        Directory.Delete(slaveLibrary, true);
-                    FileUtil.CopyFileOrDirectory(library, slaveLibrary);
+                    //Copy Libaray
+                    string library = Path.GetFullPath("Library");
+                    for (int i = 0; i < Profile.SlaveCount; ++i)
+                    {
+                        string slaveDir = Path.GetFullPath(Profile.SlaveRoot);
+                        if (!Directory.Exists(slaveDir))
+                            continue;
+                        string slaveLibrary = Path.Combine(slaveDir, string.Format("slave_{0}/Library", i));
+                        EditorUtility.DisplayProgressBar("copying", string.Format("copying Library from Master to Slave {0}", i), (float)i / Profile.SlaveCount);
+                        if (Directory.Exists(slaveLibrary))
+                            Directory.Delete(slaveLibrary, true);
+                        FileUtil.CopyFileOrDirectory(library, slaveLibrary);
+                    }
+                }
+                finally
+                {
+                    EditorUtility.ClearProgressBar();
                 }
             }
 
