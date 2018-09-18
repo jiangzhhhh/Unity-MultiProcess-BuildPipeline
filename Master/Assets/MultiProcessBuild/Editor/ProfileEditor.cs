@@ -11,9 +11,9 @@ namespace MultiProcessBuild
         static void MakeSymbolLink(string source, string dest)
         {
 #if UNITY_EDITOR_WIN
-            Process.Start("cmd", string.Format("/c mklink /j \"{0}\" \"{1}\"", dest, source));
+            using (Process.Start("cmd", string.Format("/c mklink /j \"{0}\" \"{1}\"", dest, source))) { }
 #elif UNITY_EDITOR_OSX
-			Process.Start("ln", string.Format("-s {0} {1}", source, dest));
+			using (Process.Start("ln", string.Format("-s {0} {1}", source, dest))) { }
 #endif
         }
 
@@ -95,11 +95,14 @@ namespace MultiProcessBuild
                         string slaveDir = Path.GetFullPath(Profile.SlaveRoot);
                         if (!Directory.Exists(slaveDir))
                             continue;
-                        string slaveLibrary = Path.Combine(slaveDir, string.Format("slave_{0}/Library", i));
                         EditorUtility.DisplayProgressBar("copying", string.Format("copying Library from Master to Slave {0}", i), (float)i / Profile.SlaveCount);
-                        if (Directory.Exists(slaveLibrary))
-                            Directory.Delete(slaveLibrary, true);
-                        FileUtil.CopyFileOrDirectory(library, slaveLibrary);
+#if UNITY_EDITOR_WIN
+                        string slaveLibrary = Path.Combine(slaveDir, string.Format("slave_{0}/Library", i));
+                        using (Process.Start("robocopy", string.Format("{0} {1}", library, slaveLibrary))) { }
+#else
+                        string slaveLibrary = Path.Combine(slaveDir, string.Format("slave_{0}", i));
+                        using (Process.Start("rsync", string.Format("-r {0} {1}", library, slaveLibrary))) { }
+#endif
                     }
                 }
                 finally
@@ -111,9 +114,9 @@ namespace MultiProcessBuild
             if (GUILayout.Button("Open Slave Root Directory"))
             {
 #if UNITY_EDITOR_WIN
-                Process.Start("explorer", Profile.SlaveRoot);
+                using (Process.Start("explorer", Profile.SlaveRoot)) { }
 #else
-                Process.Start("open", Profile.SlaveRoot);
+                using (Process.Start("open", Profile.SlaveRoot)) { }
 #endif
             }
         }
