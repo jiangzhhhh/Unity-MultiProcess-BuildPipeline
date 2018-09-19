@@ -11,5 +11,5 @@
 在ssd+i7的pc上进行实验，测试工程单节点进行全量资源构建需要300min，同样测试条件下，修改为5节点并行构建后缩短为42min，效果显著<br>
 
 # 用例
-1. 选择菜单"MultiProcessBuild/Profile"进入Profile面板,点击"Create Slaves"创建多个构建工程<br>
+1. 选择菜单"MultiProcessBuild/Setting"进入Profile面板,点击"Create Slaves"创建多个构建工程<br>
 2. 使用"Exampl/Build"进行资源构建
