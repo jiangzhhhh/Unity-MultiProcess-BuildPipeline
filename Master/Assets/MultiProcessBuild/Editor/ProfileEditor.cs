@@ -83,7 +83,7 @@ namespace MultiProcessBuild
 #endif
 
 #if UNITY_EDITOR_WIN
-                cmds.Add(string.Format("{0} {1}", library, Path.Combine(slaveDir, "Library")));
+                cmds.Add(string.Format("/s {0} {1}", library, Path.Combine(slaveDir, "Library")));
 #else
                 cmds.Add(string.Format("-r {0} {1}", library, slaveDir));
 #endif
