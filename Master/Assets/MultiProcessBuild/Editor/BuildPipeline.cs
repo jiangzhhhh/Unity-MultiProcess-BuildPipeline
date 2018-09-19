@@ -77,8 +77,8 @@ namespace MultiProcessBuild
 
             var jobs = tree.BuildJobs(slaves.Count + 1, output, options, target);
 
-            List<Process> pss = new List<Process>();
             AssetBundleManifest[] results = new AssetBundleManifest[jobs.Length];
+            List<string> cmds = new List<string>();
             for (int jobID = 1; jobID < jobs.Length; ++jobID)
             {
                 int slaveID = jobID - 1;
@@ -94,8 +94,7 @@ namespace MultiProcessBuild
                                            " -projectPath {0} " +
                                            " -executeMethod MultiProcessBuild.BuildPipeline.BuildJobSlave",
                                            slaveProj);
-                    var ps = Process.Start(Unity, cmd);
-                    pss.Add(ps);
+                    cmds.Add(cmd);
                 }
             }
 
@@ -118,45 +117,21 @@ namespace MultiProcessBuild
             if ((options & BuildAssetBundleOptions.DryRunBuild) != 0)
                 return null;
 
-            int progress = 0;
-            int totalProgress = pss.Count;
-            try
+            MultiProcess.Start(Unity, cmds.ToArray(), "building", "waiting for sub process...", (ps, idx) =>
             {
-                while (progress < totalProgress)
+                var ExitCode = ps.ExitCode;
+                if (ExitCode != 0)
                 {
-                    EditorUtility.DisplayProgressBar("building", "waiting for sub process...", (float)progress / totalProgress);
-                    for (int slaveID = 0; slaveID < pss.Count; ++slaveID)
-                    {
-                        var ps = pss[slaveID];
-                        if (ps == null)
-                            continue;
-
-                        if (ps.WaitForExit(200))
-                        {
-                            progress++;
-
-                            var ExitCode = ps.ExitCode;
-                            if (ExitCode != 0)
-                            {
-                                allFinish = false;
-                                UnityEngine.Debug.LogErrorFormat("slave {0} code:{1}", slaveID, ExitCode);
-                            }
-                            else
-                            {
-                                UnityEngine.Debug.LogFormat("slave {0} code:{1}", slaveID, ExitCode);
-                                string resultFile = string.Format(string.Format("{0}/result_{1}.json", output, slaveID + 1));
-                                results[slaveID + 1] = JsonUtility.FromJson<AssetBundleManifest>(File.ReadAllText(resultFile));
-                            }
-                            ps.Dispose();
-                            pss[slaveID] = null;
-                        }
-                    }
+                    allFinish = false;
+                    UnityEngine.Debug.LogErrorFormat("slave {0} code:{1}", idx, ExitCode);
                 }
-            }
-            finally
-            {
-                EditorUtility.ClearProgressBar();
-            }
+                else
+                {
+                    UnityEngine.Debug.LogFormat("slave {0} code:{1}", idx, ExitCode);
+                    string resultFile = string.Format(string.Format("{0}/result_{1}.json", output, idx + 1));
+                    results[idx + 1] = JsonUtility.FromJson<AssetBundleManifest>(File.ReadAllText(resultFile));
+                }
+            });
 
             if (allFinish)
             {

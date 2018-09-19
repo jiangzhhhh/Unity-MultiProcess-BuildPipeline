@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -8,30 +9,40 @@ namespace MultiProcessBuild
     [CustomEditor(typeof(Profile))]
     class ProfileEditor : Editor
     {
-        static void MakeSymbolLink(string source, string dest)
+        static Process MakeSymbolLink(string source, string dest)
         {
 #if UNITY_EDITOR_WIN
-            using (Process.Start("cmd", string.Format("/c mklink /j \"{0}\" \"{1}\"", dest, source))) { }
+            return Process.Start("cmd", string.Format("/c mklink /j \"{0}\" \"{1}\"", dest, source));
 #elif UNITY_EDITOR_OSX
-			using (Process.Start("ln", string.Format("-s {0} {1}", source, dest))) { }
+			return Process.Start("ln", string.Format("-s {0} {1}", source, dest));
 #endif
         }
 
+#if UNITY_EDITOR_OSX
         static void MakeSymbolLinkFlatDir(string source, string dest)
         {
             Directory.CreateDirectory(dest);
-            dest = Path.GetDirectoryName(dest);
+            source = Path.GetFullPath(source);
+
+            List<Process> pss = new List<Process>();
             foreach (var x in Directory.GetFiles(source, "*.*", SearchOption.TopDirectoryOnly))
             {
-                var relPath = FileUtil.GetProjectRelativePath(x);
-                MakeSymbolLink(x, Path.Combine(dest, relPath));
+                var relPath = x.Replace(source, "");
+                relPath = relPath.TrimStart('\\');
+                relPath = relPath.TrimStart('/');
+                pss.Add(MakeSymbolLink(x, Path.Combine(dest, relPath)));
             }
             foreach (var x in Directory.GetDirectories(source, "*.*", SearchOption.TopDirectoryOnly))
             {
-                var relPath = FileUtil.GetProjectRelativePath(x);
-                MakeSymbolLink(x, Path.Combine(dest, relPath));
+                var relPath = x.Replace(source, "");
+                relPath = relPath.TrimStart('\\');
+                relPath = relPath.TrimStart('/');
+                pss.Add(MakeSymbolLink(x, Path.Combine(dest, relPath)));
             }
+
+            MultiProcess.Start(pss.ToArray(), "waiting", "make symbol link...");
         }
+#endif
 
         static void CreateSlave(int index)
         {
@@ -41,9 +52,9 @@ namespace MultiProcessBuild
 #if UNITY_EDITOR_OSX
             MakeSymbolLinkFlatDir(Path.GetFullPath("Assets"), Path.Combine(slaveDir, "Assets"));
 #else
-            MakeSymbolLink(Path.GetFullPath("Assets"), Path.Combine(slaveDir, "Assets"));
+            using (MakeSymbolLink(Path.GetFullPath("Assets"), Path.Combine(slaveDir, "Assets"))) { }
 #endif
-            MakeSymbolLink(Path.GetFullPath("ProjectSettings"), Path.Combine(slaveDir, "ProjectSettings"));
+            using (MakeSymbolLink(Path.GetFullPath("ProjectSettings"), Path.Combine(slaveDir, "ProjectSettings"))) { }
 
             UnityEngine.Debug.LogFormat("Create Slave Project: {0}", slaveDir);
         }
@@ -86,29 +97,30 @@ namespace MultiProcessBuild
 
             if (GUILayout.Button("Cold Startup"))
             {
-                try
-                {
-                    //Copy Libaray
-                    string library = Path.GetFullPath("Library");
-                    for (int i = 0; i < Profile.SlaveCount; ++i)
-                    {
-                        string slaveDir = Path.GetFullPath(Profile.SlaveRoot);
-                        if (!Directory.Exists(slaveDir))
-                            continue;
-                        EditorUtility.DisplayProgressBar("copying", string.Format("copying Library from Master to Slave {0}", i), (float)i / Profile.SlaveCount);
 #if UNITY_EDITOR_WIN
-                        string slaveLibrary = Path.Combine(slaveDir, string.Format("slave_{0}/Library", i));
-                        using (Process.Start("robocopy", string.Format("{0} {1}", library, slaveLibrary))) { }
+                string bin = "robocopy";
 #else
-                        string slaveLibrary = Path.Combine(slaveDir, string.Format("slave_{0}", i));
-                        using (Process.Start("rsync", string.Format("-r {0} {1}", library, slaveLibrary))) { }
+                string bin = "rsync";
 #endif
-                    }
-                }
-                finally
+                List<string> cmds = new List<string>();
+
+                //Copy Libaray
+                string library = Path.GetFullPath("Library");
+                for (int i = 0; i < Profile.SlaveCount; ++i)
                 {
-                    EditorUtility.ClearProgressBar();
+                    string slaveDir = Path.GetFullPath(Profile.SlaveRoot);
+                    if (!Directory.Exists(slaveDir))
+                        continue;
+#if UNITY_EDITOR_WIN
+                    string slaveLibrary = Path.Combine(slaveDir, string.Format("slave_{0}/Library", i));
+                    cmds.Add(string.Format("{0} {1}", library, slaveLibrary));
+#else
+                    string slaveLibrary = Path.Combine(slaveDir, string.Format("slave_{0}", i));
+                    cmds.Add(string.Format("-r {0} {1}", library, slaveLibrary));
+#endif
                 }
+
+                MultiProcess.Start(bin, cmds.ToArray(), "copying", "copying Library from Master to Slave");
             }
 
             if (GUILayout.Button("Open Slave Root Directory"))
