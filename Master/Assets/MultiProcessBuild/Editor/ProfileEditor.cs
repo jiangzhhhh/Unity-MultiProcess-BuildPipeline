@@ -127,6 +127,7 @@ namespace MultiProcessBuild
             {
                 for (int i = 0; i < Profile.SlaveCount; ++i)
                     CreateSlave(i);
+                SyncSlaveProjects();
             }
 
             if (GUILayout.Button("Sync Slaves"))
