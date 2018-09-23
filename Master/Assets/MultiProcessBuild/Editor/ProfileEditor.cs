@@ -127,11 +127,15 @@ namespace MultiProcessBuild
             {
                 for (int i = 0; i < Profile.SlaveCount; ++i)
                     CreateSlave(i);
+#if UNITY_EDITOR_WIN
                 SyncSlaveProjects();
+#endif
             }
 
+#if UNITY_EDITOR_WIN
             if (GUILayout.Button("Sync Slaves"))
                 SyncSlaveProjects();
+#endif
 
             if (GUILayout.Button("Open Slave Root Directory"))
             {
