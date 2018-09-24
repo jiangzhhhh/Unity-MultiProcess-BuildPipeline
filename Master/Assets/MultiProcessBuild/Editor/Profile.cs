@@ -11,7 +11,6 @@ namespace MultiProcessBuild
         string slaveRoot = "..";
 
         public static int SlaveCount { get { return Instance.slaveCount; } }
-        public static string SlaveRoot { get { return Instance.slaveRoot; } }
 
         static Profile _instance = null;
         static Profile Instance

@@ -32,7 +32,12 @@ namespace MultiProcessBuild
         [MenuItem("MultiProcessBuild/Build With build.json")]
         static void BuildJobSlave()
         {
-            string text = File.ReadAllText("./build.json");
+            string buildJobPath = "./build.json";
+            string[] CommandLineArgs = System.Environment.GetCommandLineArgs();
+            int i = ArrayUtility.FindIndex<string>(CommandLineArgs, (x) => x == "-buildJob");
+            if (i != -1)
+                buildJobPath = CommandLineArgs[i + 1];
+            string text = File.ReadAllText(buildJobPath);
             BuildJob job = JsonUtility.FromJson<BuildJob>(text);
             BuildJob(job);
         }
@@ -59,41 +64,24 @@ namespace MultiProcessBuild
                 }
             }
 
-            List<string> slaves = new List<string>();
-            int i = 0;
-            string slaveRoot = Path.GetFullPath(Profile.SlaveRoot);
-            while (true)
-            {
-                string slaveProj = Path.Combine(slaveRoot, string.Format("slave_{0}", i++));
-                if (!Directory.Exists(slaveProj))
-                    break;
-                slaves.Add(slaveProj);
-            }
-
-            string Unity = EditorApplication.applicationPath;
-#if UNITY_EDITOR_OSX
-            Unity += "/Contents/MacOS/Unity";
-#endif
-
-            var jobs = tree.BuildJobs(slaves.Count + 1, output, options, target);
-
+            var jobs = tree.BuildJobs(Profile.SlaveCount + 1, output, options, target);
             AssetBundleManifest[] results = new AssetBundleManifest[jobs.Length];
             List<string> cmds = new List<string>();
             for (int jobID = 1; jobID < jobs.Length; ++jobID)
             {
                 int slaveID = jobID - 1;
                 BuildJob job = jobs[jobID];
-                string slaveProj = slaves[slaveID];
-                File.WriteAllText(slaveProj + "/build.json", JsonUtility.ToJson(job, true));
+                File.WriteAllText(string.Format("build_{0}.json", jobID), JsonUtility.ToJson(job, true));
 
                 if ((options & BuildAssetBundleOptions.DryRunBuild) == 0)
                 {
                     string cmd = string.Format(" -quit" +
                                            " -batchmode" +
-                                           " -logfile {0}/log.txt" +
+                                           " -logfile {0}/log_{1}.txt" +
                                            " -projectPath {0} " +
-                                           " -executeMethod MultiProcessBuild.BuildPipeline.BuildJobSlave",
-                                           slaveProj);
+                                           " -executeMethod MultiProcessBuild.BuildPipeline.BuildJobSlave" +
+                                           " -buildJob {0}/build_{1}.json",
+                                           Path.GetFullPath("."), jobID);
                     cmds.Add(cmd);
                 }
             }
@@ -102,7 +90,7 @@ namespace MultiProcessBuild
             if (jobs.Length > 0)
             {
                 var job = jobs[0];
-                File.WriteAllText("build.json", JsonUtility.ToJson(job, true));
+                File.WriteAllText("build_0.json", JsonUtility.ToJson(job, true));
 
                 if ((options & BuildAssetBundleOptions.DryRunBuild) == 0)
                 {
@@ -117,7 +105,7 @@ namespace MultiProcessBuild
             if ((options & BuildAssetBundleOptions.DryRunBuild) != 0)
                 return null;
 
-            MultiProcess.Start(Unity, cmds.ToArray(), "building", "waiting for sub process...", (ps, idx) =>
+            MultiProcess.UnityFork(cmds.ToArray(), "building", "waiting for sub process...", (ps, idx) =>
             {
                 var ExitCode = ps.ExitCode;
                 if (ExitCode != 0)
