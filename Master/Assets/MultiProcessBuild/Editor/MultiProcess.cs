@@ -53,12 +53,44 @@ namespace MultiProcessBuild
             return Start(pss, title, info, onProcessExited);
         }
 
+#if UNITY_EDITOR_WIN
+        static void mklink(string source, string dest)
+        {
+            source = Path.GetFullPath(source);
+            dest = Path.GetFullPath(dest);
+            using (Process.Start("cmd", string.Format("/c mklink /j \"{0}\" \"{1}\"", dest, source))) { }
+        }
+#endif
+
         public static int[] UnityFork(string[] cmds, string title, string info, System.Action<Process, int> onProcessExited = null)
         {
+#if UNITY_EDITOR_WIN
+            const string slaveRoot = "../Slaves";
+            if (!Directory.Exists(slaveRoot))
+                Directory.CreateDirectory(slaveRoot);
+            int instanceCount = cmds.Length;
+            for (int i = 0; i < instanceCount; ++i)
+            {
+                string slaveProject = string.Format("{0}/slave_{1}", slaveRoot, i);
+                cmds[i] += " -projectPath " + Path.GetFullPath(slaveProject);
+                if (!Directory.Exists(slaveProject))
+                    Directory.CreateDirectory(slaveProject);
+                if (!Directory.Exists(slaveProject + "/Assets"))
+                    mklink("Assets", slaveProject + "/Assets");
+                if (!Directory.Exists(slaveProject + "/ProjectSettings"))
+                    mklink("ProjectSettings", slaveProject + "/ProjectSettings");
+                if (!Directory.Exists(slaveProject + "/Library"))
+                {
+                    Directory.CreateDirectory(slaveProject + "/Library");
+                    mklink("Library/metadata", slaveProject + "/Library/metadata");
+                    mklink("Library/ShaderCache", slaveProject + "/Library/ShaderCache");
+                    using (Process.Start("robocopy", string.Format("/s Library {0}/Library /xd metadata ShaderCache", slaveProject))) { }
+                }
+            }
             string Unity = EditorApplication.applicationPath;
-#if UNITY_EDITOR_OSX
-            Unity += "/Contents/MacOS/Unity";
-#endif
+            return Start(Unity, cmds, title, info, onProcessExited);
+#elif UNITY_EDITOR_OSX
+            string Unity = EditorApplication.applicationPath + "/Contents/MacOS/Unity";
             const string UnityLockfile = "Temp/UnityLockfile";
             try
             {
@@ -67,6 +99,7 @@ namespace MultiProcessBuild
                 Process[] pss = new Process[instanceCount];
                 for (int i = 0; i < instanceCount; ++i)
                 {
+                    cmds[i] += " -projectPath " + Path.GetFullPath(".");
                     if (i > 0)
                     {
                         while (!File.Exists(UnityLockfile))
@@ -82,6 +115,7 @@ namespace MultiProcessBuild
             {
                 Directory.Move("Temp_bak", "Temp");
             }
+#endif
         }
     }
 }

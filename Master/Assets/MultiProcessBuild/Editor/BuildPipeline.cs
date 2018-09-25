@@ -78,7 +78,7 @@ namespace MultiProcessBuild
                     string cmd = string.Format(" -quit" +
                                            " -batchmode" +
                                            " -logfile {0}/log_{1}.txt" +
-                                           " -projectPath {0} " +
+                                           //" -projectPath {0} " +
                                            " -executeMethod MultiProcessBuild.BuildPipeline.BuildJobSlave" +
                                            " -buildJob {0}/build_{1}.json",
                                            Path.GetFullPath("."), jobID);
