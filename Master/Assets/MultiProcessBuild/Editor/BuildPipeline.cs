@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -63,62 +62,58 @@ namespace MultiProcessBuild
                 }
             }
 
-            var jobs = tree.BuildJobs(Profile.SlaveCount + 1, output, options, target);
+            var jobs = tree.BuildJobs(Mathf.Max(Profile.SlaveCount, 1), output, options, target);
             AssetBundleManifest[] results = new AssetBundleManifest[jobs.Length];
-            List<string> cmds = new List<string>();
-            for (int jobID = 1; jobID < jobs.Length; ++jobID)
-            {
-                int slaveID = jobID - 1;
-                BuildJob job = jobs[jobID];
-                File.WriteAllText(string.Format("build_{0}.json", jobID), JsonUtility.ToJson(job, true));
-
-                if ((options & BuildAssetBundleOptions.DryRunBuild) == 0)
-                {
-                    string cmd = string.Format(" -quit" +
-                                           " -batchmode" +
-                                           " -logfile {0}/log_{1}.txt" +
-                                           //" -projectPath {0} " +
-                                           " -executeMethod MultiProcessBuild.BuildPipeline.BuildJobSlave" +
-                                           " -buildJob {0}/build_{1}.json",
-                                           Path.GetFullPath("."), jobID);
-                    cmds.Add(cmd);
-                }
-            }
-
+           
             bool allFinish = true;
-            if (jobs.Length > 0)
+            if (jobs.Length == 1)
             {
                 var job = jobs[0];
                 File.WriteAllText("build_0.json", JsonUtility.ToJson(job, true));
-
                 if ((options & BuildAssetBundleOptions.DryRunBuild) == 0)
-                {
-                    var result = BuildJob(job);
-                    results[0] = result;
-                    if (result == null)
-                        allFinish = false;
-                }
+                    results[0] = BuildJob(job);
             }
-
-            //dryrun return null
-            if ((options & BuildAssetBundleOptions.DryRunBuild) != 0)
-                return null;
-
-            MultiProcess.UnityFork(cmds.ToArray(), "building", "waiting for sub process...", (ps, idx) =>
+            else
             {
-                var ExitCode = ps.ExitCode;
-                if (ExitCode != 0)
+                //dryrun return null
+                if ((options & BuildAssetBundleOptions.DryRunBuild) != 0)
+                    return null;
+
+                List<string> cmds = new List<string>();
+                for (int jobID = 0; jobID < jobs.Length; ++jobID)
                 {
-                    allFinish = false;
-                    UnityEngine.Debug.LogErrorFormat("slave {0} code:{1}", idx, ExitCode);
+                    BuildJob job = jobs[jobID];
+                    File.WriteAllText(string.Format("build_{0}.json", jobID), JsonUtility.ToJson(job, true));
+
+                    if ((options & BuildAssetBundleOptions.DryRunBuild) == 0)
+                    {
+                        string cmd = string.Format(" -quit" +
+                                               " -batchmode" +
+                                               " -logfile {0}/log_{1}.txt" +
+                                               //" -projectPath {0} " +
+                                               " -executeMethod MultiProcessBuild.BuildPipeline.BuildJobSlave" +
+                                               " -buildJob {0}/build_{1}.json",
+                                               Path.GetFullPath("."), jobID);
+                        cmds.Add(cmd);
+                    }
                 }
-                else
+
+                MultiProcess.UnityFork(cmds.ToArray(), "building", "waiting for sub process...", (ps, idx) =>
                 {
-                    UnityEngine.Debug.LogFormat("slave {0} code:{1}", idx, ExitCode);
-                    string resultFile = string.Format(string.Format("{0}/result_{1}.json", output, idx + 1));
-                    results[idx + 1] = JsonUtility.FromJson<AssetBundleManifest>(File.ReadAllText(resultFile));
-                }
-            });
+                    var ExitCode = ps.ExitCode;
+                    if (ExitCode != 0)
+                    {
+                        allFinish = false;
+                        UnityEngine.Debug.LogErrorFormat("slave {0} code:{1}", idx, ExitCode);
+                    }
+                    else
+                    {
+                        UnityEngine.Debug.LogFormat("slave {0} code:{1}", idx, ExitCode);
+                        string resultFile = string.Format(string.Format("{0}/result_{1}.json", output, idx));
+                        results[idx] = JsonUtility.FromJson<AssetBundleManifest>(File.ReadAllText(resultFile));
+                    }
+                });
+            }
 
             if (allFinish)
             {
