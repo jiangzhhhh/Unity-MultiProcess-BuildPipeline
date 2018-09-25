@@ -29,10 +29,9 @@ namespace MultiProcessBuild
             return result;
         }
 
-        [MenuItem("MultiProcessBuild/Build With build.json")]
         static void BuildJobSlave()
         {
-            string buildJobPath = "./build.json";
+            string buildJobPath = null;
             string[] CommandLineArgs = System.Environment.GetCommandLineArgs();
             int i = ArrayUtility.FindIndex<string>(CommandLineArgs, (x) => x == "-buildJob");
             if (i != -1)
