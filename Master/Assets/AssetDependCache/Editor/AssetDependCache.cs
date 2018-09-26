@@ -65,7 +65,10 @@ public static class AssetDependCache
             {
                 cache = JsonUtility.FromJson<CACHE>(str);
                 if (cache != null && cache.dependencyHash == depHash)
+                {
+                    cacheInMemory[pathName] = cache;
                     return cache;
+                }
                 else
                     cache = null;
             }
@@ -82,6 +85,7 @@ public static class AssetDependCache
             if (!Directory.Exists(dir))
                 Directory.CreateDirectory(dir);
             File.WriteAllText(cacheFile, JsonUtility.ToJson(cache, true));
+            cacheInMemory[pathName] = cache;
 
             if (recursive)
             {
@@ -117,7 +121,7 @@ public static class AssetDependCache
         }
     }
 
-    public static string[] GetDependencies(string pathName, bool recursive)
+    public static string[] GetDependencies(string pathName, bool recursive=false)
     {
         var cache = FetchDependCache(pathName);
         if (!recursive)
@@ -131,11 +135,18 @@ public static class AssetDependCache
         }
     }
 
+    [MenuItem("Assets/AssetDependCache/Rebuild Depend Cache All(force)")]
+    static void RebuildDependCacheAllHard(MenuCommand cmd) { RebuildDependCacheAll(true); }
+
     [MenuItem("Assets/AssetDependCache/Rebuild Depend Cache All")]
-    static void RebuildDependCacheAll(MenuCommand cmd)
+    static void RebuildDependCacheAllSoft(MenuCommand cmd) { RebuildDependCacheAll(false); }
+
+    static void RebuildDependCacheAll(bool force)
     {
         Stopwatch sw = Stopwatch.StartNew();
-        FileUtil.DeleteFileOrDirectory(CACHE_DIR);
+
+        if (force)
+            FileUtil.DeleteFileOrDirectory(CACHE_DIR);
 
         var all = AssetDatabase.GetAllAssetPaths()
             .Where(x => x.StartsWith("Assets"))
@@ -148,24 +159,32 @@ public static class AssetDependCache
         EditorApplication.CallbackFunction update = null;
         update = delegate ()
         {
-            string path = all[index++];
-            FetchDependCache(path, false);
-            bool isCancel = EditorUtility.DisplayCancelableProgressBar("rebuilding", path, (float)index / total);
-            if (isCancel || index >= total)
+            for (int i = 0; i < 512; ++i)
             {
-                EditorUtility.ClearProgressBar();
-                EditorApplication.update -= update;
-
-                if (index >= total)
-                    UnityEngine.Debug.LogFormat("rebuild all depend cache, use time:{0}", sw.ElapsedMilliseconds / 1000f);
+                string path = all[index++];
+                FetchDependCache(path, false);
+                bool isCancel = EditorUtility.DisplayCancelableProgressBar("rebuilding", path, (float)index / total);
+                if (isCancel || index >= total)
+                {
+                    EditorUtility.ClearProgressBar();
+                    EditorApplication.update -= update;
+                    if (index >= total)
+                        UnityEngine.Debug.LogFormat("rebuild all depend cache, use time:{0}", sw.ElapsedMilliseconds / 1000f);
+                    return;
+                }
             }
         };
         EditorApplication.update -= update;
         EditorApplication.update += update;
     }
 
+    [MenuItem("Assets/AssetDependCache/Rebuild Depend Cache(Force)")]
+    static void RebuildDependCacheHard(MenuCommand cmd) { RebuildDependCache(true); }
+
     [MenuItem("Assets/AssetDependCache/Rebuild Depend Cache")]
-    static void RebuildDependCache(MenuCommand cmd)
+    static void RebuildDependCacheSoft(MenuCommand cmd) { RebuildDependCache(false); }
+
+    static void RebuildDependCache(bool force)
     {
         foreach (var obj in Selection.objects)
         {
@@ -175,7 +194,8 @@ public static class AssetDependCache
 
             Stopwatch sw = Stopwatch.StartNew();
             string cacheFile = CalcCacheFileName(asset);
-            FileUtil.DeleteFileOrDirectory(cacheFile);
+            if (force)
+                FileUtil.DeleteFileOrDirectory(cacheFile);
             FetchDependCache(asset);
             UnityEngine.Debug.LogFormat("rebuild depend cache {0}, use time:{1}", asset, sw.ElapsedMilliseconds / 1000f);
         }
