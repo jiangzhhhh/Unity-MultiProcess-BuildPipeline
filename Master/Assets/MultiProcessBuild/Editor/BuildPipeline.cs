@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -42,11 +43,11 @@ namespace MultiProcessBuild
 
         static AssetBundleManifest BuildJob(BuildJob job)
         {
-            var sw = new Stopwatch();
+            var sw = Stopwatch.StartNew();
             var unity_manifest = job.Build();
             string resultFile = string.Format("{0}/result_{1}.json", job.output, job.slaveID);
             sw.Stop();
-            return OutputResult(resultFile, sw.UseSecs, unity_manifest);
+            return OutputResult(resultFile, sw.ElapsedMilliseconds * .001f, unity_manifest);
         }
 
         public static AssetBundleManifest BuildAssetBundles(string output, AssetBundleBuild[] builds, BuildAssetBundleOptions options, BuildTarget target)
@@ -64,7 +65,7 @@ namespace MultiProcessBuild
 
             var jobs = tree.BuildJobs(Mathf.Max(Profile.SlaveCount, 1), output, options, target);
             AssetBundleManifest[] results = new AssetBundleManifest[jobs.Length];
-           
+
             bool allFinish = true;
             if (jobs.Length == 1)
             {
