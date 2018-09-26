@@ -63,7 +63,8 @@ namespace MultiProcessBuild
                 }
             }
 
-            var jobs = tree.BuildJobs(Mathf.Max(Profile.SlaveCount, 1), output, options, target);
+            int slaveCount = System.Environment.ProcessorCount; //TODO:
+            var jobs = tree.BuildJobs(Mathf.Max(slaveCount, 1), output, options, target);
             AssetBundleManifest[] results = new AssetBundleManifest[jobs.Length];
 
             bool allFinish = true;
