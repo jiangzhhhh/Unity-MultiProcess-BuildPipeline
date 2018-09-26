@@ -88,7 +88,8 @@ namespace MultiProcessBuild
                     Directory.CreateDirectory(slaveProject + "/Library");
                     mklink("Library/metadata", slaveProject + "/Library/metadata");
                     mklink("Library/ShaderCache", slaveProject + "/Library/ShaderCache");
-                    using (Process.Start("robocopy", string.Format("/s Library {0}/Library /xd metadata ShaderCache", slaveProject))) { }
+                    mklink("Library/AtlasCache", slaveProject + "/Library/AtlasCache");
+                    using (Process.Start("robocopy", string.Format("/s Library {0}/Library /xd metadata ShaderCache DependCache", slaveProject))) { }
                 }
             }
             string Unity = EditorApplication.applicationPath;
