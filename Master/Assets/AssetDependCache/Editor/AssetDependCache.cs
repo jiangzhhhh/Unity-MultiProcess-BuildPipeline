@@ -45,7 +45,7 @@ public static class AssetDependCache
         return string.Format("{0}/{1}/{2}", CACHE_DIR, bucketDir, hashFileName);
     }
 
-    static CACHE FetchDependCache(string pathName, bool recursive = true)
+    static CACHE FetchDependCache(string pathName, bool recursive = false)
     {
         CACHE cache = null;
         string depHash = AssetDatabase.GetAssetDependencyHash(pathName).ToString();
@@ -93,7 +93,7 @@ public static class AssetDependCache
                 {
                     if (dep == pathName)
                         continue;
-                    FetchDependCache(dep, false);
+                    FetchDependCache(dep);
                 }
             }
         }
@@ -121,7 +121,7 @@ public static class AssetDependCache
         }
     }
 
-    public static string[] GetDependencies(string pathName, bool recursive=false)
+    public static string[] GetDependencies(string pathName, bool recursive = false)
     {
         var cache = FetchDependCache(pathName);
         if (!recursive)
@@ -162,7 +162,7 @@ public static class AssetDependCache
             for (int i = 0; i < 512; ++i)
             {
                 string path = all[index++];
-                FetchDependCache(path, false);
+                FetchDependCache(path);
                 bool isCancel = EditorUtility.DisplayCancelableProgressBar("rebuilding", path, (float)index / total);
                 if (isCancel || index >= total)
                 {
@@ -196,7 +196,7 @@ public static class AssetDependCache
             string cacheFile = CalcCacheFileName(asset);
             if (force)
                 FileUtil.DeleteFileOrDirectory(cacheFile);
-            FetchDependCache(asset);
+            FetchDependCache(asset, true);
             UnityEngine.Debug.LogFormat("rebuild depend cache {0}, use time:{1}", asset, sw.ElapsedMilliseconds / 1000f);
         }
     }
@@ -213,5 +213,49 @@ public static class AssetDependCache
         for (int i = 0; i < deps.Length; ++i)
             select[i] = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(deps[i]);
         Selection.objects = select;
+    }
+
+    [MenuItem("Assets/AssetDependCache/Benchmark")]
+    static void Benchmark(MenuCommand cmd)
+    {
+        var all = AssetDatabase.GetAllAssetPaths()
+            .Where(x => x.StartsWith("Assets"))
+            .Where(x => !AssetDatabase.IsValidFolder(x))
+            .Where(x => !x.EndsWith(".cs"))
+            .ToArray();
+
+        {
+            Stopwatch sw = Stopwatch.StartNew();
+            foreach (var asset in all)
+                AssetDatabase.GetDependencies(asset);
+            sw.Stop();
+            UnityEngine.Debug.LogFormat("orign :{0}", sw.ElapsedMilliseconds / 1000f);
+        }
+
+        {
+            FileUtil.DeleteFileOrDirectory(CACHE_DIR);
+            Stopwatch sw = Stopwatch.StartNew();
+            foreach (var asset in all)
+                GetDependencies(asset);
+            sw.Stop();
+            UnityEngine.Debug.LogFormat("no cache:{0}", sw.ElapsedMilliseconds / 1000f);
+        }
+
+        {
+            cacheInMemory.Clear();
+            Stopwatch sw = Stopwatch.StartNew();
+            foreach (var asset in all)
+                GetDependencies(asset);
+            sw.Stop();
+            UnityEngine.Debug.LogFormat("disk cache:{0}", sw.ElapsedMilliseconds / 1000f);
+        }
+
+        {
+            Stopwatch sw = Stopwatch.StartNew();
+            foreach (var asset in all)
+                GetDependencies(asset);
+            sw.Stop();
+            UnityEngine.Debug.LogFormat("memory cache:{0}", sw.ElapsedMilliseconds / 1000f);
+        }
     }
 }
