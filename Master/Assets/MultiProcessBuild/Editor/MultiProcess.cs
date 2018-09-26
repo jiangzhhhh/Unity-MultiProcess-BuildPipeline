@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using UnityEditor;
 
@@ -7,50 +8,53 @@ namespace MultiProcessBuild
 {
     static class MultiProcess
     {
-        public static int[] Start(Process[] pss, string title, string info, System.Action<Process, int> onProcessExited = null)
+        public static int[] Start(Process[] pss, string title, string info)
         {
-            int progress = 0;
             int total = pss.Length;
             int[] exitCodes = new int[total];
 
             try
             {
-                EditorUtility.DisplayProgressBar(title, info, 0f);
-                while (progress < total)
+                for (int i = 0; i < total; ++i)
                 {
-                    for (int i = 0; i < total; ++i)
-                    {
-                        var ps = pss[i];
-                        if (ps == null)
-                            continue;
-
-                        if (ps.WaitForExit(200))
-                        {
-                            if (onProcessExited != null)
-                                onProcessExited(ps, i);
-                            exitCodes[i] = ps.ExitCode;
-                            progress++;
-                            ps.Dispose();
-                            pss[i] = null;
-                            EditorUtility.DisplayProgressBar(title, info, (float)progress / total);
-                        }
-                    }
+                    var ps = pss[i];
+                    if (!ps.Start())
+                        throw new System.Exception("Process Start Failed.");
                 }
+
+                while (true)
+                {
+                    int progress = pss.Count(x => x.HasExited);
+                    if (EditorUtility.DisplayCancelableProgressBar(title, info, (float)progress / total))
+                        throw new System.Exception("User Cancel.");
+                    Thread.Sleep(200);
+                    if (progress >= total)
+                        break;
+                }
+                for (int i = 0; i < total; ++i)
+                    exitCodes[i] = pss[i].ExitCode;
             }
             finally
             {
+                for (int i = 0; i < total; ++i)
+                    pss[i].Dispose();
                 EditorUtility.ClearProgressBar();
             }
 
             return exitCodes;
         }
 
-        public static int[] Start(string bin, string[] cmd, string title, string info, System.Action<Process, int> onProcessExited = null)
+        public static int[] Start(string bin, string[] cmd, string title, string info)
         {
             Process[] pss = new Process[cmd.Length];
             for (int i = 0; i < cmd.Length; ++i)
-                pss[i] = Process.Start(bin, cmd[i]);
-            return Start(pss, title, info, onProcessExited);
+            {
+                var ps = new Process();
+                ps.StartInfo.FileName = bin;
+                ps.StartInfo.Arguments = cmd[i];
+                pss[i] = ps;
+            }
+            return Start(pss, title, info);
         }
 
 #if UNITY_EDITOR_WIN
@@ -62,7 +66,7 @@ namespace MultiProcessBuild
         }
 #endif
 
-        public static int[] UnityFork(string[] cmds, string title, string info, System.Action<Process, int> onProcessExited = null)
+        public static int[] UnityFork(string[] cmds, string title, string info)
         {
 #if UNITY_EDITOR_WIN
             const string slaveRoot = "../Slaves";
@@ -88,7 +92,7 @@ namespace MultiProcessBuild
                 }
             }
             string Unity = EditorApplication.applicationPath;
-            return Start(Unity, cmds, title, info, onProcessExited);
+            return Start(Unity, cmds, title, info);
 #elif UNITY_EDITOR_OSX
             string Unity = EditorApplication.applicationPath + "/Contents/MacOS/Unity";
             const string UnityLockfile = "Temp/UnityLockfile";
@@ -109,7 +113,7 @@ namespace MultiProcessBuild
                     var ps = Process.Start(Unity, cmds[i]);
                     pss[i] = ps;
                 }
-                return Start(pss, title, info, onProcessExited);
+                return Start(pss, title, info);
             }
             finally
             {

@@ -99,21 +99,22 @@ namespace MultiProcessBuild
                     }
                 }
 
-                MultiProcess.UnityFork(cmds.ToArray(), "building", "waiting for sub process...", (ps, idx) =>
+                var exitCodes = MultiProcess.UnityFork(cmds.ToArray(), "building", "waiting for sub process...");
+                for (int jobID = 0; jobID < jobs.Length; ++jobID)
                 {
-                    var ExitCode = ps.ExitCode;
+                    var ExitCode = exitCodes[jobID]; ;
                     if (ExitCode != 0)
                     {
                         allFinish = false;
-                        UnityEngine.Debug.LogErrorFormat("slave {0} code:{1}", idx, ExitCode);
+                        UnityEngine.Debug.LogErrorFormat("slave {0} code:{1}", jobID, ExitCode);
                     }
                     else
                     {
-                        UnityEngine.Debug.LogFormat("slave {0} code:{1}", idx, ExitCode);
-                        string resultFile = string.Format(string.Format("{0}/result_{1}.json", output, idx));
-                        results[idx] = JsonUtility.FromJson<AssetBundleManifest>(File.ReadAllText(resultFile));
+                        UnityEngine.Debug.LogFormat("slave {0} code:{1}", jobID, ExitCode);
+                        string resultFile = string.Format(string.Format("{0}/result_{1}.json", output, jobID));
+                        results[jobID] = JsonUtility.FromJson<AssetBundleManifest>(File.ReadAllText(resultFile));
                     }
-                });
+                }
             }
 
             if (allFinish)
