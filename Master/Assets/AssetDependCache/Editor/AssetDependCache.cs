@@ -3,89 +3,103 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
+using System.Runtime.InteropServices;
 using UnityEditor;
 using UnityEngine;
 
-[Serializable]
 class CACHE
 {
-    [SerializeField]
-    public string asset;
-    [SerializeField]
-    public string dependencyHash;
-    [SerializeField]
+    public Hash128 dependencyHash;
     public string[] depends;
 }
 
 public static class AssetDependCache
 {
     static readonly string CACHE_DIR = "Library/DependCache";
-    static Dictionary<string, CACHE> cacheInMemory = new Dictionary<string, CACHE>();
+    static Dictionary<Hash128, CACHE> cacheInMemory = new Dictionary<Hash128, CACHE>();
 
-    static string PathToMD5(string path)
+    static string CalcCacheFileName(Hash128 hash)
     {
-        if (string.IsNullOrEmpty(path))
+        string digi = hash.ToString();
+        string bucketDir = string.Format("{0}{1}", digi[0], digi[1]);
+        return string.Format("{0}/{1}/{2}", CACHE_DIR, bucketDir, digi);
+    }
+
+    static CACHE ReadCache(string file)
+    {
+        if (!File.Exists(file))
             return null;
-        using (MD5 md5Hash = MD5.Create())
+
+        using (FileStream fs = File.OpenRead(file))
         {
-            byte[] bytes = md5Hash.ComputeHash(Encoding.ASCII.GetBytes(path));
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < bytes.Length; i++)
-                sb.Append(bytes[i].ToString("x2"));
-            return sb.ToString();
+            CACHE cache = new CACHE();
+            BinaryReader br = new BinaryReader(fs);
+            uint i0 = br.ReadUInt32();
+            uint i1 = br.ReadUInt32();
+            uint i2 = br.ReadUInt32();
+            uint i3 = br.ReadUInt32();
+            cache.dependencyHash = new Hash128(i0, i1, i2, i3);
+            ushort size = br.ReadUInt16();
+            cache.depends = new string[size];
+            for (int i = 0; i < size; ++i)
+                cache.depends[i] = br.ReadString();
+            return cache;
         }
     }
 
-    static string CalcCacheFileName(string path)
+    static void WriteCache(string file, CACHE cache)
     {
-        string hashFileName = PathToMD5(path);
-        string bucketDir = string.Format("{0}{1}", hashFileName[0], hashFileName[1]);
-        return string.Format("{0}/{1}/{2}", CACHE_DIR, bucketDir, hashFileName);
+        string dir = Path.GetDirectoryName(file);
+        if (!Directory.Exists(dir))
+            Directory.CreateDirectory(dir);
+
+        using (FileStream fs = File.OpenWrite(file))
+        {
+            BinaryWriter bw = new BinaryWriter(fs);
+            byte[] buf = new byte[16];
+            {
+                IntPtr ptr = Marshal.AllocHGlobal(16);
+                Marshal.StructureToPtr(cache.dependencyHash, ptr, false);
+                Marshal.Copy(ptr, buf, 0, 16);
+                Marshal.FreeHGlobal(ptr);
+            }
+            bw.Write(buf);
+            bw.Write((ushort)cache.depends.Length);
+            foreach (var dep in cache.depends)
+                bw.Write(dep);
+        }
     }
 
-    static CACHE FetchDependCache(string pathName, bool recursive = false)
+    static CACHE FetchDependCache(string pathName, bool recursive)
     {
         CACHE cache = null;
-        string depHash = AssetDatabase.GetAssetDependencyHash(pathName).ToString();
+        Hash128 depHash = AssetDatabase.GetAssetDependencyHash(pathName);
 
         //memory
-        if (cacheInMemory.TryGetValue(pathName, out cache) && cache.dependencyHash == depHash)
+        if (cacheInMemory.TryGetValue(depHash, out cache) && cache.dependencyHash == depHash)
             return cache;
         else
             cache = null;
 
         //disk
-        string cacheFile = CalcCacheFileName(pathName);
-        if (File.Exists(cacheFile))
+        string cacheFile = CalcCacheFileName(depHash);
+        cache = ReadCache(cacheFile);
+        if (cache != null && cache.dependencyHash == depHash)
         {
-            string str = File.ReadAllText(cacheFile);
-            if (!string.IsNullOrEmpty(str))
-            {
-                cache = JsonUtility.FromJson<CACHE>(str);
-                if (cache != null && cache.dependencyHash == depHash)
-                {
-                    cacheInMemory[pathName] = cache;
-                    return cache;
-                }
-                else
-                    cache = null;
-            }
+            cacheInMemory[depHash] = cache;
+            return cache;
         }
+        else
+            cache = null;
 
         //rebuild
         if (cache == null)
         {
             cache = new CACHE();
-            cache.asset = pathName;
             cache.dependencyHash = depHash;
             cache.depends = AssetDatabase.GetDependencies(pathName, false);
-            string dir = Path.GetDirectoryName(cacheFile);
-            if (!Directory.Exists(dir))
-                Directory.CreateDirectory(dir);
-            File.WriteAllText(cacheFile, JsonUtility.ToJson(cache, true));
-            cacheInMemory[pathName] = cache;
+            WriteCache(cacheFile, cache);
+            cacheInMemory[depHash] = cache;
 
             if (recursive)
             {
@@ -93,7 +107,7 @@ public static class AssetDependCache
                 {
                     if (dep == pathName)
                         continue;
-                    FetchDependCache(dep);
+                    FetchDependCache(dep, false);
                 }
             }
         }
@@ -106,7 +120,7 @@ public static class AssetDependCache
             return;
         visited.Add(pathName);
 
-        var cache = FetchDependCache(pathName);
+        var cache = FetchDependCache(pathName, false);
         foreach (var dep in cache.depends)
         {
             if (!results.ContainsKey(dep))
@@ -115,7 +129,7 @@ public static class AssetDependCache
 
         foreach (var dep in cache.depends)
         {
-            var cache2 = FetchDependCache(dep);
+            var cache2 = FetchDependCache(dep, false);
             foreach (var dep2 in cache2.depends)
                 GetDependenciesRecursive(dep2, results, visited);
         }
@@ -123,7 +137,7 @@ public static class AssetDependCache
 
     public static string[] GetDependencies(string pathName, bool recursive = false)
     {
-        var cache = FetchDependCache(pathName);
+        var cache = FetchDependCache(pathName, false);
         if (!recursive)
             return cache.depends;
         else
@@ -162,7 +176,7 @@ public static class AssetDependCache
             for (int i = 0; i < 512; ++i)
             {
                 string path = all[index++];
-                FetchDependCache(path);
+                FetchDependCache(path, false);
                 bool isCancel = EditorUtility.DisplayCancelableProgressBar("rebuilding", path, (float)index / total);
                 if (isCancel || index >= total)
                 {
@@ -193,7 +207,8 @@ public static class AssetDependCache
                 return;
 
             Stopwatch sw = Stopwatch.StartNew();
-            string cacheFile = CalcCacheFileName(asset);
+            Hash128 depHash = AssetDatabase.GetAssetDependencyHash(asset);
+            string cacheFile = CalcCacheFileName(depHash);
             if (force)
                 FileUtil.DeleteFileOrDirectory(cacheFile);
             FetchDependCache(asset, true);
@@ -225,14 +240,6 @@ public static class AssetDependCache
             .ToArray();
 
         {
-            Stopwatch sw = Stopwatch.StartNew();
-            foreach (var asset in all)
-                AssetDatabase.GetDependencies(asset);
-            sw.Stop();
-            UnityEngine.Debug.LogFormat("orign :{0}", sw.ElapsedMilliseconds / 1000f);
-        }
-
-        {
             FileUtil.DeleteFileOrDirectory(CACHE_DIR);
             Stopwatch sw = Stopwatch.StartNew();
             foreach (var asset in all)
@@ -256,6 +263,14 @@ public static class AssetDependCache
                 GetDependencies(asset);
             sw.Stop();
             UnityEngine.Debug.LogFormat("memory cache:{0}", sw.ElapsedMilliseconds / 1000f);
+        }
+
+        {
+           Stopwatch sw = Stopwatch.StartNew();
+           foreach (var asset in all)
+               AssetDatabase.GetDependencies(asset);
+           sw.Stop();
+           UnityEngine.Debug.LogFormat("orign :{0}", sw.ElapsedMilliseconds / 1000f);
         }
     }
 }
