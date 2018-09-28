@@ -29,10 +29,33 @@ namespace AssetFinder
             if (force)
                 FileUtil.DeleteFileOrDirectory(CACHE_DIR);
 
+            HashSet<string> ignore = new HashSet<string>()
+            {
+                ".anim",
+                ".bytes",
+                ".txt",
+                ".json",
+
+                ".jpg",
+                ".jpeg",
+                ".tif",
+                ".tiff",
+                ".tga",
+                ".gif",
+                ".png",
+                ".psd",
+                ".bmp",
+                ".iff",
+                ".pict",
+                ".pic",
+                ".pct",
+                ".exr",
+            };
+
             var all = AssetDatabase.GetAllAssetPaths()
                 .Where(x => x.StartsWith("Assets"))
                 .Where(x => !AssetDatabase.IsValidFolder(x))
-                .Where(x => !x.EndsWith(".cs"))
+                .Where(x => !ignore.Contains(Path.GetExtension(x).ToLower()))
                 .ToArray();
 
             int index = 0;

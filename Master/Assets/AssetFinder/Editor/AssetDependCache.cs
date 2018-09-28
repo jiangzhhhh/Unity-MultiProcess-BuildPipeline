@@ -121,16 +121,15 @@ namespace AssetFinder
             if (visited.Contains(pathName))
                 return;
             visited.Add(pathName);
+            if (!results.ContainsKey(pathName))
+                results.Add(pathName, pathName);
 
             var cache = FetchDependCache(pathName, false);
             foreach (var dep in cache.depends)
             {
                 if (!results.ContainsKey(dep))
                     results.Add(dep, dep);
-            }
 
-            foreach (var dep in cache.depends)
-            {
                 var cache2 = FetchDependCache(dep, false);
                 foreach (var dep2 in cache2.depends)
                     GetDependenciesRecursive(dep2, results, visited);
