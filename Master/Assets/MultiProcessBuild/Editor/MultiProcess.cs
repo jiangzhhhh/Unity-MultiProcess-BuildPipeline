@@ -57,30 +57,69 @@ namespace MultiProcessBuild
             return Start(pss, title, info);
         }
 
-#if UNITY_EDITOR_WIN
         static void mklink(string source, string dest)
         {
             source = Path.GetFullPath(source);
             dest = Path.GetFullPath(dest);
+#if UNITY_EDITOR_WIN
             using (Process.Start("cmd", string.Format("/c mklink /j \"{0}\" \"{1}\"", dest, source))) { }
-        }
+#elif UNITY_EDITOR_OSX
+            using (Process.Start("ln", string.Format("-sf \"{0}\" \"{1}\"", source, dest))) { }
 #endif
+        }
+
+        static void rsync(string source, string dest, params string[] ignores)
+        {
+#if UNITY_EDITOR_WIN
+            string ignore = "";
+            if (ignores.Length > 0)
+            {
+                ignore = "/xd";
+                foreach (var x in ignores)
+                    ignore += x + " ";
+            }
+            string arg = string.Format("/s {0} {1} {2}", source, dest, ignore);
+            using (Process.Start("robocopy", arg)) { }
+#elif UNITY_EDITOR_OSX
+            string ignore = "";
+            if (ignores.Length > 0)
+            {
+                foreach (var x in ignores)
+                    ignore += "--exclude=" + x;
+            }
+            string arg = string.Format("-r {0} {1} {2}", source, Path.GetDirectoryName(dest), ignore);
+            using (Process.Start("rsync", arg)) { }
+#endif
+        }
 
         public static int[] UnityFork(string[] cmds, string title, string info)
         {
-#if UNITY_EDITOR_WIN
             const string slaveRoot = "../Slaves";
             if (!Directory.Exists(slaveRoot))
                 Directory.CreateDirectory(slaveRoot);
-            int instanceCount = cmds.Length;
-            for (int i = 0; i < instanceCount; ++i)
+            for (int i = 0; i < cmds.Length; ++i)
             {
                 string slaveProject = string.Format("{0}/slave_{1}", slaveRoot, i);
                 cmds[i] += " -projectPath " + Path.GetFullPath(slaveProject);
                 if (!Directory.Exists(slaveProject))
                     Directory.CreateDirectory(slaveProject);
+
                 if (!Directory.Exists(slaveProject + "/Assets"))
+                {
+#if UNITY_EDITOR_WIN
                     mklink("Assets", slaveProject + "/Assets");
+#elif UNITY_EDITOR_OSX
+                    Directory.CreateDirectory(slaveProject + "/Assets");
+#endif
+                }
+
+#if UNITY_EDITOR_OSX
+                foreach (var file in Directory.GetFiles("Assets", "*.*", SearchOption.TopDirectoryOnly))
+                    mklink(file, slaveProject + "/Assets");
+                foreach (var dir in Directory.GetDirectories("Assets", "*.*", SearchOption.TopDirectoryOnly))
+                    mklink(dir, slaveProject + "/Assets");
+#endif
+
                 if (!Directory.Exists(slaveProject + "/ProjectSettings"))
                     mklink("ProjectSettings", slaveProject + "/ProjectSettings");
                 if (!Directory.Exists(slaveProject + "/Library"))
@@ -89,38 +128,14 @@ namespace MultiProcessBuild
                     mklink("Library/metadata", slaveProject + "/Library/metadata");
                     mklink("Library/ShaderCache", slaveProject + "/Library/ShaderCache");
                     mklink("Library/AtlasCache", slaveProject + "/Library/AtlasCache");
-                    using (Process.Start("robocopy", string.Format("/s Library {0}/Library /xd metadata ShaderCache DependCache", slaveProject))) { }
+                    rsync("Library", slaveProject + "/Library", "metadata", "ShaderCache", "AtlasCache");
                 }
             }
             string Unity = EditorApplication.applicationPath;
-            return Start(Unity, cmds, title, info);
-#elif UNITY_EDITOR_OSX
-            string Unity = EditorApplication.applicationPath + "/Contents/MacOS/Unity";
-            const string UnityLockfile = "Temp/UnityLockfile";
-            try
-            {
-                Directory.Move("Temp", "Temp_bak");
-                int instanceCount = cmds.Length;
-                Process[] pss = new Process[instanceCount];
-                for (int i = 0; i < instanceCount; ++i)
-                {
-                    cmds[i] += " -projectPath " + Path.GetFullPath(".");
-                    if (i > 0)
-                    {
-                        while (!File.Exists(UnityLockfile))
-                            Thread.Sleep(200);
-                        File.Delete(UnityLockfile);
-                    }
-                    var ps = Process.Start(Unity, cmds[i]);
-                    pss[i] = ps;
-                }
-                return Start(pss, title, info);
-            }
-            finally
-            {
-                Directory.Move("Temp_bak", "Temp");
-            }
+#if UNITY_EDITOR_OSX
+            Unity += "/Contents/MacOS/Unity";
 #endif
+            return Start(Unity, cmds, title, info);
         }
     }
 }
