@@ -54,7 +54,7 @@ namespace MultiProcessBuild
             foreach (var an in assetNodes.Values)
             {
                 var bn = an.bundleNode;
-                string[] deps = AssetFinder.AssetDependCache.GetDependencies(an.assetName, true);
+                string[] deps = AssetDependCache.GetDependencies(an.assetName, true);
                 foreach (var dep in deps)
                 {
                     AssetNode depN;

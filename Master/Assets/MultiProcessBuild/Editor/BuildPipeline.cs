@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace MultiProcessBuild
 {
-    public static partial class BuildPipeline
+    public static class BuildPipeline
     {
         static AssetBundleManifest OutputResult(string resultFile, float useTime, UnityEngine.AssetBundleManifest manifest)
         {

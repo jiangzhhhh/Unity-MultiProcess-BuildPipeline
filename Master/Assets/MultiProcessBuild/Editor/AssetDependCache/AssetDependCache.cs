@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 using UnityEditor;
 using UnityEngine;
 
-namespace AssetFinder
+namespace MultiProcessBuild
 {
     class CACHE
     {

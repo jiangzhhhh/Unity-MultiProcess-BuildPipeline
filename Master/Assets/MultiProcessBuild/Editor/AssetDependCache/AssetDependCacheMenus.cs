@@ -6,20 +6,20 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace AssetFinder
+namespace MultiProcessBuild
 {
     public static partial class AssetDependCache
     {
-        [MenuItem("Assets/Asset Finder/Depend Cache/Rebuild Depend Cache All", false, 0)]
+        [MenuItem("Assets/Asset Depend/Cache/Rebuild Depend Cache All", false, 0)]
         static void RebuildDependCacheAllSoft(MenuCommand cmd) { RebuildDependCacheAll(false); }
 
-        [MenuItem("Assets/Asset Finder/Depend Cache/Rebuild Depend Cache", false, 1)]
+        [MenuItem("Assets/Asset Depend/Cache/Rebuild Depend Cache", false, 1)]
         static void RebuildDependCacheSoft(MenuCommand cmd) { RebuildDependCache(false); }
 
-        [MenuItem("Assets/Asset Finder/Depend Cache/Rebuild Depend Cache All(force)", false, 2)]
+        [MenuItem("Assets/Asset Depend/Cache/Rebuild Depend Cache All(force)", false, 2)]
         static void RebuildDependCacheAllHard(MenuCommand cmd) { RebuildDependCacheAll(true); }
 
-        [MenuItem("Assets/Asset Finder/Depend Cache/Rebuild Depend Cache(Force)", false, 3)]
+        [MenuItem("Assets/Asset Depend/Cache/Rebuild Depend Cache(Force)", false, 3)]
         static void RebuildDependCacheHard(MenuCommand cmd) { RebuildDependCache(true); }
 
         static void RebuildDependCacheAll(bool force)
@@ -100,7 +100,7 @@ namespace AssetFinder
             }
         }
 
-        [MenuItem("Assets/Asset Finder/Select Depends")]
+        [MenuItem("Assets/Asset Depend Cache/Select Depends")]
         static void SelectDepends(MenuCommand cmd)
         {
             string asset = AssetDatabase.GetAssetPath(Selection.activeObject);
@@ -114,7 +114,7 @@ namespace AssetFinder
             Selection.objects = select;
         }
 
-        [MenuItem("Assets/Asset Finder/Find Reference")]
+        [MenuItem("Assets/Asset Depend/Find Reference")]
         static void FindReference(MenuCommand cmd)
         {
             string asset = AssetDatabase.GetAssetPath(Selection.activeObject);
