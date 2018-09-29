@@ -100,7 +100,7 @@ namespace MultiProcessBuild
             }
         }
 
-        [MenuItem("Assets/Asset Depend Cache/Select Depends")]
+        [MenuItem("Assets/Asset Depend/Select Depends")]
         static void SelectDepends(MenuCommand cmd)
         {
             string asset = AssetDatabase.GetAssetPath(Selection.activeObject);
