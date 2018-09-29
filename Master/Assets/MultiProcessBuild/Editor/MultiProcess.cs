@@ -85,7 +85,7 @@ namespace MultiProcessBuild
             if (ignores.Length > 0)
             {
                 foreach (var x in ignores)
-                    ignore += "--exclude=" + x;
+                    ignore += " --exclude=" + x;
             }
             string arg = string.Format("-r {0} {1} {2}", source, Path.GetDirectoryName(dest), ignore);
             using (Process.Start("rsync", arg)) { }
@@ -128,8 +128,8 @@ namespace MultiProcessBuild
                     mklink("Library/metadata", slaveProject + "/Library/metadata");
                     mklink("Library/ShaderCache", slaveProject + "/Library/ShaderCache");
                     mklink("Library/AtlasCache", slaveProject + "/Library/AtlasCache");
-                    rsync("Library", slaveProject + "/Library", "metadata", "ShaderCache", "AtlasCache");
                 }
+                rsync("Library", slaveProject + "/Library", "metadata", "ShaderCache", "AtlasCache", "DependCache");
             }
             string Unity = EditorApplication.applicationPath;
 #if UNITY_EDITOR_OSX
