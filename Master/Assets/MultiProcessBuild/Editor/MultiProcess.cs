@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -8,7 +9,7 @@ namespace MultiProcessBuild
 {
     static class MultiProcess
     {
-        public static int[] Start(Process[] pss, string title, string info)
+        static int[] Start(Process[] pss, string title, string info)
         {
             int total = pss.Length;
             int[] exitCodes = new int[total];
@@ -44,7 +45,7 @@ namespace MultiProcessBuild
             return exitCodes;
         }
 
-        public static int[] Start(string bin, string[] cmd, string title, string info)
+        static int[] Start(string bin, string[] cmd, string title, string info)
         {
             Process[] pss = new Process[cmd.Length];
             for (int i = 0; i < cmd.Length; ++i)
@@ -57,29 +58,34 @@ namespace MultiProcessBuild
             return Start(pss, title, info);
         }
 
-        static void mklink(string source, string dest)
+        static Process mklink(string source, string dest)
         {
             source = Path.GetFullPath(source);
             dest = Path.GetFullPath(dest);
+            var ps = new Process();
 #if UNITY_EDITOR_WIN
-            using (Process.Start("cmd", string.Format("/c mklink /j \"{0}\" \"{1}\"", dest, source))) { }
+            ps.StartInfo.FileName = "cmd";
+            ps.StartInfo.Arguments = string.Format("/c mklink /j \"{0}\" \"{1}\"", dest, source);
 #elif UNITY_EDITOR_OSX
-            using (Process.Start("ln", string.Format("-sf \"{0}\" \"{1}\"", source, dest))) { }
+            ps.StartInfo.FileName = "ln";
+            ps.StartInfo.Arguments = string.Format("-sf \"{0}\" \"{1}\"", source, dest);
 #endif
+            return ps;
         }
 
-        static void rsync(string source, string dest, params string[] ignores)
+        static Process rsync(string source, string dest, params string[] ignores)
         {
+            var ps = new Process();
 #if UNITY_EDITOR_WIN
             string ignore = "";
             if (ignores.Length > 0)
             {
-                ignore = "/xd";
+                ignore = "/xd ";
                 foreach (var x in ignores)
                     ignore += x + " ";
             }
-            string arg = string.Format("/s {0} {1} {2}", source, dest, ignore);
-            using (Process.Start("robocopy", arg)) { }
+            ps.StartInfo.FileName = "robocopy";
+            ps.StartInfo.Arguments = string.Format("/s {0} {1} {2}", source, dest, ignore);
 #elif UNITY_EDITOR_OSX
             string ignore = "";
             if (ignores.Length > 0)
@@ -87,9 +93,10 @@ namespace MultiProcessBuild
                 foreach (var x in ignores)
                     ignore += " --exclude=" + x;
             }
-            string arg = string.Format("-r {0} {1} {2}", source, Path.GetDirectoryName(dest), ignore);
-            using (Process.Start("rsync", arg)) { }
+            ps.StartInfo.FileName = "rsync";
+            ps.StartInfo.Arguments = string.Format("-r {0} {1} {2}", source, Path.GetDirectoryName(dest), ignore);
 #endif
+            return ps;
         }
 
         public static int[] UnityFork(string[] cmds, string title, string info)
@@ -97,6 +104,10 @@ namespace MultiProcessBuild
             const string slaveRoot = "../Slaves";
             if (!Directory.Exists(slaveRoot))
                 Directory.CreateDirectory(slaveRoot);
+
+            List<Process> linkPSs = new List<Process>();
+            List<Process> rsyncPSs = new List<Process>();
+
             for (int i = 0; i < cmds.Length; ++i)
             {
                 string slaveProject = string.Format("{0}/slave_{1}", slaveRoot, i);
@@ -107,7 +118,7 @@ namespace MultiProcessBuild
                 if (!Directory.Exists(slaveProject + "/Assets"))
                 {
 #if UNITY_EDITOR_WIN
-                    mklink("Assets", slaveProject + "/Assets");
+                    linkPSs.Add(mklink("Assets", slaveProject + "/Assets"));
 #elif UNITY_EDITOR_OSX
                     Directory.CreateDirectory(slaveProject + "/Assets");
 #endif
@@ -115,22 +126,26 @@ namespace MultiProcessBuild
 
 #if UNITY_EDITOR_OSX
                 foreach (var file in Directory.GetFiles("Assets", "*.*", SearchOption.TopDirectoryOnly))
-                    mklink(file, slaveProject + "/Assets");
+                    linkPSs.Add(mklink(file, slaveProject + "/Assets"));
                 foreach (var dir in Directory.GetDirectories("Assets", "*.*", SearchOption.TopDirectoryOnly))
-                    mklink(dir, slaveProject + "/Assets");
+                    linkPSs.Add(mklink(dir, slaveProject + "/Assets"));
 #endif
 
                 if (!Directory.Exists(slaveProject + "/ProjectSettings"))
-                    mklink("ProjectSettings", slaveProject + "/ProjectSettings");
+                    linkPSs.Add(mklink("ProjectSettings", slaveProject + "/ProjectSettings"));
                 if (!Directory.Exists(slaveProject + "/Library"))
                 {
                     Directory.CreateDirectory(slaveProject + "/Library");
-                    mklink("Library/metadata", slaveProject + "/Library/metadata");
-                    mklink("Library/ShaderCache", slaveProject + "/Library/ShaderCache");
-                    mklink("Library/AtlasCache", slaveProject + "/Library/AtlasCache");
+                    linkPSs.Add(mklink("Library/metadata", slaveProject + "/Library/metadata"));
+                    linkPSs.Add(mklink("Library/ShaderCache", slaveProject + "/Library/ShaderCache"));
+                    linkPSs.Add(mklink("Library/AtlasCache", slaveProject + "/Library/AtlasCache"));
                 }
-                rsync("Library", slaveProject + "/Library", "metadata", "ShaderCache", "AtlasCache", "DependCache");
+                rsyncPSs.Add(rsync("Library", slaveProject + "/Library", "metadata", "ShaderCache", "AtlasCache", "DependCache"));
             }
+
+            Start(linkPSs.ToArray(), "make slave projects", "mklinking");
+            Start(rsyncPSs.ToArray(), "make slave projects", "rsyncing");
+
             string Unity = EditorApplication.applicationPath;
 #if UNITY_EDITOR_OSX
             Unity += "/Contents/MacOS/Unity";
