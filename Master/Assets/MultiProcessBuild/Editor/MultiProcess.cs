@@ -38,7 +38,12 @@ namespace MultiProcessBuild
             finally
             {
                 for (int i = 0; i < total; ++i)
-                    pss[i].Dispose();
+                {
+                    var ps = pss[i];
+                    if (!ps.HasExited)
+                        ps.Kill();
+                    ps.Dispose();
+                }
                 EditorUtility.ClearProgressBar();
             }
 
