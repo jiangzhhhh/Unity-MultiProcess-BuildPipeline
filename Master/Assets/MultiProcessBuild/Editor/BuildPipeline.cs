@@ -68,7 +68,9 @@ namespace MultiProcessBuild
             AssetBundleManifest[] results = new AssetBundleManifest[jobs.Length];
 
             bool allFinish = true;
-            if (jobs.Length == 1)
+            if (jobs.Length == 0)
+                return null;
+            else if (jobs.Length == 1)
             {
                 var job = jobs[0];
                 File.WriteAllText("build_0.json", JsonUtility.ToJson(job, true));
@@ -94,11 +96,16 @@ namespace MultiProcessBuild
                                                " -logfile {0}/log_{1}.txt" +
                                                //" -projectPath {0} " +
                                                " -executeMethod MultiProcessBuild.BuildPipeline.BuildJobSlave" +
-                                               " -buildJob {0}/build_{1}.json",
-                                               Path.GetFullPath("."), jobID);
+                                               " -buildJob {0}/build_{1}.json" +
+                                               " -buildTarget {2}",
+                                               Path.GetFullPath("."),
+                                               jobID,
+                                               target.ToString());
                         cmds.Add(cmd);
                     }
                 }
+
+                EditorUserBuildSettings.SwitchActiveBuildTarget(target);
 
                 var exitCodes = MultiProcess.UnityFork(cmds.ToArray(), "building", "waiting for sub process...");
                 for (int jobID = 0; jobID < jobs.Length; ++jobID)
